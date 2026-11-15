@@ -3,14 +3,17 @@ name: '📋 Update manifest'
 # Regenerates manifest.json from the plugin zip of a release, so the repository can be used as a
 # Jellyfin plugin source and always points at the current binary with its checksum.
 on:
-  release:
+  # Run after the Release workflow: it creates the release with GITHUB_TOKEN, and events produced by
+  # GITHUB_TOKEN never start another workflow, so "on: release" silently never fires.
+  workflow_run:
+    workflows: ['📦 Release']
     types:
-      - released
+      - completed
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (for example v0.1.0)'
-        required: true
+        description: 'Release tag (for example v0.1.1)'
+        required: false
 
 permissions:
   contents: write
@@ -35,7 +38,7 @@ jobs:
       - name: Build manifest entry for the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
           mkdir -p tmp/repo tmp/zips
@@ -55,5 +58,5 @@ jobs:
             echo 'manifest unchanged'
             exit 0
           fi
-          git commit -m 'Update plugin manifest for ${{ github.event.release.tag_name || inputs.tag }}'
+          git commit -m "Update plugin manifest for $(git describe --tags --abbrev=0)"
           git push origin main
