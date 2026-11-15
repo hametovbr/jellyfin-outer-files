@@ -50,7 +50,16 @@ jobs:
           jprm repo add --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
             -U "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ZIP")" \
             tmp/repo "$ZIP"
-          cp tmp/repo/manifest.json manifest.json
+          # GitHub serves raw files through a CDN cache; a stale manifest points at a wrong zip for minutes.
+          # A version query makes every fetch a new URL, so Jellyfin always sees the current file.
+          python3 - <<'PYEOF'
+          import json, pathlib
+          manifest = json.loads(pathlib.Path('tmp/repo/manifest.json').read_text())
+          for plugin in manifest:
+              for version in plugin.get('versions', []):
+                  version['sourceUrl'] = version['sourceUrl'].split('?')[0] + '?manifest=1'
+          pathlib.Path('manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+          PYEOF
 
       - name: Commit manifest
         run: |
@@ -62,5 +71,5 @@ jobs:
             echo 'manifest unchanged'
             exit 0
           fi
-          git commit -m "Update plugin manifest for $(git describe --tags --abbrev=0)"
+          git commit -m "Update plugin manifest"
           git push origin main
