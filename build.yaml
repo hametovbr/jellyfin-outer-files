@@ -4,20 +4,22 @@ image: "thumb.png"
 version: "0.2.0.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
-overview: "Attach audio and subtitle files from sub folders to their video"
+overview: "Link tracks from sub folders, fix episode numbers of release names, organize releases"
 description: >
-  Jellyfin only picks up external audio and subtitle files that sit next to the video and start with the
-  video file name. Release groups usually put extra tracks and subtitles into sibling folders
-  ("RU Subs", "EN Sound", "RU Sound [Anilibria]/надписи") or into a sub folder of the video folder.
-  This plugin walks the folder of every video, matches tracks to episodes (or a movie) by their numbers
-  and common prefix, detects language, signs (forced) and studio from folder and file names, and links the
-  tracks as regular external streams. Media files are never modified and no files are created.
+  Three things for libraries filled straight from torrents. Link mode (automatic): audio and subtitle files
+  stored in sub folders of a release ("RU Sound [Anilibria]", "RUS Subs/Crunchyroll/Надписи",
+  "Sounds/Wakanim") show up as regular external tracks with language, studio title and signs flag; media
+  folders are not touched. Episode recognition: release names Jellyfin misreads ([2023] in a folder name read
+  as episode 2023, "[Grp]_Show_07_(..)", "Show_[61_of_62]", "Show TV-2 - 10") get correct numbers.
+  Organize mode (on demand): pick a release, check the file-to-episode mapping, review the plan and rename
+  folder, videos and every related file to one Sonarr-style scheme; every change is journaled and can be
+  undone.
 category: "Library"
 owner: "hametovbr"
 artifacts:
   - "Jellyfin.Plugin.OuterFiles.dll"
   - "Jellyfin.Plugin.OuterFiles.Domain.dll"
 changelog: >
-  0.1.1: plugin settings are stored as scalars; the scan history moved to history.json, so the scheduled
-  task and the settings page work. Added scan counters (inspected/changed/tracks/errors).
-  0.1.0: initial release.
+  0.2.0: ground-up rewrite. Link mode via symlinks in Jellyfin's per-item metadata folder (the 0.1.x approach
+  of writing SubtitleFiles was overwritten by every probe); episode naming rules with a self-test; organize
+  mode with plan, journal and undo; settings and organize pages.

@@ -56,6 +56,8 @@ jobs:
           import json, pathlib
           manifest = json.loads(pathlib.Path('tmp/repo/manifest.json').read_text())
           for plugin in manifest:
+              # jprm points imageUrl at a path that is not part of a release; serve the icon from main.
+              plugin['imageUrl'] = 'https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png'
               for version in plugin.get('versions', []):
                   version['sourceUrl'] = version['sourceUrl'].split('?')[0] + '?manifest=1'
           pathlib.Path('manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')

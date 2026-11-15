@@ -1,6 +1,6 @@
 # Outer Files — target architecture (v0.2+ rewrite)
 
-Status: proposal, 2026-11-16. Supersedes the 0.1.x design (scanner that writes `Video.SubtitleFiles`).
+Status: implemented in 0.2.0 (2026-11-16); section 12 lists what changed during implementation. Supersedes the 0.1.x design (scanner that writes `Video.SubtitleFiles`).
 Every statement about Jellyfin below was checked against the `v12.4` tag of `jellyfin/jellyfin`;
 file:line references point there.
 
@@ -255,8 +255,42 @@ All endpoints require elevation. Apply requires the hash of the plan the user re
 5. Organize: apply/undo, organize UI page.
 6. Polish: track-suffix normalisation (`.rus.19.srt`), fonts, docs, remove 0.1.x leftovers.
 
-## 12. Open points
+## 12. Implementation notes (what changed while building it)
+
+- **Recognition is broader than one regex.** Measuring Jellyfin's real parser over all 4365 paths of the
+  reference library showed that *every* path-unaware core expression can read folder names: besides the
+  anime expression, `([0-9]+)-([0-9]+)` turned `(Сезоны 1-3)` into S1E3. The adapter therefore confines all
+  four path-unaware expressions to the file name (lookarounds, groups unchanged) instead of replacing one,
+  plus one prepended and three appended rules. The full-library comparison (opt-in test) shows exactly the
+  intended 197 changes.
+- **Re-numbering existing items.** Installing rules only affects new parses, so a post-scan task finds
+  episodes whose stored numbers equal the broken core parse and differ from the new one, and queues a
+  replace-all refresh for them. Hand-edited numbers never match the broken parse and are left alone.
+- **Stale per-episode nfo.** Jellyfin reads `<episode>` from local nfo files, so moving them with the video
+  would re-impose old numbers. Organize mode moves them to `<library>/.outer-files-trash/<time>/` (Jellyfin
+  ignores dot folders, `IgnorePatterns`: `**/.*`); undo brings them back.
+- **Split episodes** (`JN.02a/02b`) are named `… - pt1/pt2`; Jellyfin stacks them into one episode
+  (verified: `PartCount=2`).
+- **Testability seams**: `ILibrarySource`, `IRefresher`, `IMetadataSource` keep services free of Jellyfin
+  entities, so link reconciliation and organize run end-to-end on real temporary folders in tests.
+
+## 13. Verification
+
+- Unit, contract (real `Jellyfin.Naming` 12.4) and file-system tests: apply → verify → undo → identical
+  tree, for the executor, link reconciliation and organize.
+- Live run on Jellyfin 12.4 built from the `v12.4` tag, library generated from the owner's layouts with real
+  (tiny) media: before the plugin Jitsu had E2023 ×14, Yakusoku TV-2 E2 ×3, no outer tracks; after install
+  the self-test passed, 132 links were created, Jitsu became E1–E12 with 7 external streams each (language,
+  title, forced as expected), TV-2 became S2E1–3; a second scan changed nothing and re-probed nothing;
+  subtitles were served through the links; organize moved Jitsu to `Season 01` with tracks next to the
+  videos (no links needed), undo restored all 98 files exactly.
+- Not verified: the two dashboard pages in a browser (no web client in the test environment); their
+  endpoints and JavaScript syntax were checked.
+
+## 14. Open points
 - Which metadata providers are installed (TMDB is built in; TVDB/AniDB/Shikimori plugins change what
   identify can find for anime).
-- Fonts for `.ass`: Jellyfin only supports a global fallback font folder; per-release fonts may need to be
-  collected there.
+- Fonts for `.ass`: Jellyfin only supports a global fallback font folder; organize mode collects release
+  fonts into `fonts/` of the series folder, but does not register them with Jellyfin.
+- Files the recognition rules cannot number (`136. Title`, `JN.01`) keep whatever number Jellyfin stored
+  until they are organized.
