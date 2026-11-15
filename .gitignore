@@ -1,0 +1,11 @@
+# build output
+bin/
+obj/
+artifacts/
+*.user
+
+# local tool state (dotnet home, nuget cache, temp dirs)
+.dotnethome/
+.nuget/
+.tmpdir/
+.xdg/

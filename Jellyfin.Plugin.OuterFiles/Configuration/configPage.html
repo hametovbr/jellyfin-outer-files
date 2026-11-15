@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Outer Files</title>
+</head>
+<body>
+    <div id="OuterFilesConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Outer Files</h2>
+                </div>
+                <p class="fieldDescription">
+                    Links audio and subtitle files that live in sub folders of a video folder to that video,
+                    using the same mechanism Jellyfin uses for files next to the video. Media files are never modified.
+                </p>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="AudioExtensions">Audio extensions</label>
+                    <input id="AudioExtensions" name="AudioExtensions" type="text" is="emby-input" />
+                    <div class="fieldDescription">Comma separated list, for example <code>.mka,.flac</code></div>
+                </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="HistoryLimit">History limit</label>
+                    <input id="HistoryLimit" name="HistoryLimit" type="number" is="emby-input" min="1" max="5000" />
+                    <div class="fieldDescription">How many videos to remember on this page.</div>
+                </div>
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button" id="SaveOuterFiles">
+                        <span>Save</span>
+                    </button>
+                </div>
+
+                <div style="margin-top:2em">
+                    <h3 class="sectionTitle sectionTitle-cards">Last scan</h3>
+                    <p id="OuterFilesStatus" class="fieldDescription">No scan has run yet.</p>
+                    <button is="emby-button" type="button" class="raised emby-button" id="RunOuterFilesScan">
+                        <span>Scan now</span>
+                    </button>
+                    <p class="fieldDescription">
+                        The same scan runs as the scheduled task <strong>Attach outer audio and subtitle files</strong>
+                        (Dashboard → Scheduled Tasks) and after a library scan if that task is enabled there.
+                    </p>
+                </div>
+
+                <div style="margin-top:2em">
+                    <h3 class="sectionTitle sectionTitle-cards">Recently attached</h3>
+                    <div id="OuterFilesVideos"></div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var OuterFiles = {
+                pluginUniqueId: '3dcc5bff-46c4-4ed9-aa71-67b520faee96',
+                api: function (path, method) {
+                    return ApiClient.ajax({
+                        type: method || 'GET',
+                        url: ApiClient.getUrl('OuterFiles/' + path),
+                        dataType: 'json'
+                    });
+                }
+            };
+
+            function outerFilesRenderStatus(status) {
+                var el = document.querySelector('#OuterFilesStatus');
+                if (!status.LastScanUtc) {
+                    el.innerText = 'No scan has run yet.';
+                    return;
+                }
+                var when = new Date(status.LastScanUtc).toLocaleString();
+                el.innerText = 'Last scan: ' + when + ' — videos changed: ' + status.VideosChanged +
+                    ', tracks attached: ' + status.Tracks + ', history entries: ' + status.HistoryCount;
+            }
+
+            function outerFilesRenderVideos(list) {
+                var box = document.querySelector('#OuterFilesVideos');
+                box.innerHTML = '';
+                if (!list || !list.length) {
+                    box.innerHTML = '<p class="fieldDescription">Nothing attached yet.</p>';
+                    return;
+                }
+                var html = '<ul class="fieldDescription">';
+                list.forEach(function (v) {
+                    html += '<li><code>' + jellyfinEscape(v.Path) + '</code> — ' + v.TrackCount + ' tracks</li>';
+                });
+                html += '</ul>';
+                box.innerHTML = html;
+            }
+
+            function jellyfinEscape(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
+            function outerFilesLoad() {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
+                    document.querySelector('#AudioExtensions').value = (config.AudioExtensions || []).join(',');
+                    document.querySelector('#HistoryLimit').value = config.HistoryLimit || 200;
+                    outerFilesRefreshStatus();
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function outerFilesRefreshStatus() {
+                OuterFiles.api('Status').then(outerFilesRenderStatus);
+                OuterFiles.api('Videos?limit=50').then(outerFilesRenderVideos);
+            }
+
+            document.querySelector('#OuterFilesConfigPage').addEventListener('pageshow', outerFilesLoad);
+
+            document.querySelector('#SaveOuterFiles').addEventListener('click', function (e) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
+                    config.AudioExtensions = document.querySelector('#AudioExtensions').value
+                        .split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+                    config.HistoryLimit = parseInt(document.querySelector('#HistoryLimit').value, 10) || 200;
+                    ApiClient.updatePluginConfiguration(OuterFiles.pluginUniqueId, config).then(function (result) {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+                e.preventDefault();
+                return false;
+            });
+
+            document.querySelector('#RunOuterFilesScan').addEventListener('click', function () {
+                Dashboard.showLoadingMsg();
+                OuterFiles.api('Scan', 'POST').then(function (result) {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('Scan finished: ' + result.VideosChanged + ' videos changed, ' +
+                        result.AttachedTracks + ' tracks attached, ' + result.Errors + ' errors.');
+                    outerFilesRefreshStatus();
+                });
+            });
+        </script>
+    </div>
+</body>
+</html>

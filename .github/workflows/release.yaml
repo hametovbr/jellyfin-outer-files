@@ -1,0 +1,62 @@
+name: '📦 Release'
+
+# Builds the plugin zip with jprm and attaches it to a GitHub release so the release can be used
+# as a plugin repository entry or downloaded manually.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (X.Y.Z.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from build.yaml
+        id: meta
+        run: |
+          VERSION=$(grep -Po '^version: *"?\K[^"]+' build.yaml | head -1)
+          if [ -n "${{ inputs.version }}" ]; then VERSION="${{ inputs.version }}"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION%.0}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install jprm
+        run: pip install jprm==1.1.0
+
+      - name: Run tests
+        run: dotnet test tests/Jellyfin.Plugin.OuterFiles.Tests/Jellyfin.Plugin.OuterFiles.Tests.csproj -c Release
+
+      - name: Build plugin zip
+        run: |
+          mkdir -p artifacts
+          jprm plugin build . --dotnet-framework net10.0 --version "${{ steps.meta.outputs.version }}" --output "$PWD/artifacts"
+          ls -la artifacts
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/*.zip
+            artifacts/*.md5sum
