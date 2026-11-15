@@ -14,8 +14,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisMode>Recommended</AnalysisMode>
     <WarningsAsErrors>nullable</WarningsAsErrors>
-    <!-- LoggerMessage source generators add noise for a handful of log lines. -->
-    <NoWarn>$(NoWarn);CA1848</NoWarn>
+    <!-- CA1848/CA1873: LoggerMessage generators are noise for a handful of log lines. CA1822: services stay instance members for DI. -->
+    <NoWarn>$(NoWarn);CA1848;CA1873;CA1822</NoWarn>
     <JellyfinVersion>12.4.0</JellyfinVersion>
   </PropertyGroup>
 </Project>
