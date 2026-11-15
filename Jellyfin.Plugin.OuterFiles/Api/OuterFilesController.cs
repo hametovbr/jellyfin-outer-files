@@ -1,10 +1,5 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Jellyfin.Plugin.OuterFiles.Configuration;
-using Jellyfin.Plugin.OuterFiles.Matching;
+using Jellyfin.Plugin.OuterFiles.IO;
 using MediaBrowser.Common.Api;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,83 +7,29 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jellyfin.Plugin.OuterFiles.Api;
 
 /// <summary>
-/// Plugin API endpoints.
+/// Thin HTTP surface. Endpoints only read state or hand work to services (docs/ARCHITECTURE.md, P9).
 /// </summary>
 [ApiController]
 [Route("OuterFiles")]
 [Authorize(Policy = Policies.RequiresElevation)]
 public class OuterFilesController : ControllerBase
 {
-    private readonly OuterFileScanner _scanner;
+    private readonly JournalStore _journals;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OuterFilesController"/> class.
     /// </summary>
-    /// <param name="scanner">Scanner.</param>
-    public OuterFilesController(OuterFileScanner scanner)
+    /// <param name="journals">Journal store.</param>
+    public OuterFilesController(JournalStore journals)
     {
-        _scanner = scanner;
+        _journals = journals;
     }
 
     /// <summary>
-    /// Returns the last scan summary.
-    /// </summary>
-    /// <returns>Summary.</returns>
-    [HttpGet("Status")]
-    public ActionResult<OuterFilesStatus> GetStatus()
-    {
-        var config = Plugin.Instance!.Configuration;
-        return Ok(new OuterFilesStatus(
-            config.LastScanUtc,
-            config.LastScanScanned,
-            config.LastScanChanged,
-            config.LastScanTracks,
-            config.LastScanErrors));
-    }
-
-    /// <summary>
-    /// Returns the videos that received outer files, newest first.
+    /// Lists applied operations, newest first.
     /// </summary>
     /// <param name="limit">Maximum number of entries.</param>
-    /// <returns>List of videos.</returns>
-    [HttpGet("Videos")]
-    public ActionResult<IEnumerable<VideoOuterFiles>> GetVideos([FromQuery] int limit = 50)
-    {
-        var entries = new ScanHistory(Plugin.Instance!.DataFolderPath).Load();
-        return Ok(entries.Take(Math.Max(1, limit)));
-    }
-
-    /// <summary>
-    /// Runs a scan now.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Scan result.</returns>
-    [HttpPost("Scan")]
-    public async Task<ActionResult<ScanResult>> Scan(CancellationToken cancellationToken)
-    {
-        var result = await _scanner.ScanAsync(Plugin.Instance!.Configuration, null, cancellationToken).ConfigureAwait(false);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Explains which files would be attached to a single video, without touching the library.
-    /// </summary>
-    /// <param name="itemId">Video item id.</param>
-    /// <returns>List of matches.</returns>
-    [HttpGet("Preview/{itemId}")]
-    public ActionResult<IEnumerable<PreviewEntry>> Preview([FromRoute] Guid itemId)
-    {
-        var matches = _scanner.Preview(itemId);
-        return matches is null ? NotFound() : Ok(matches);
-    }
+    /// <returns>Journal summaries.</returns>
+    [HttpGet("Journal")]
+    public ActionResult<IReadOnlyList<JournalSummary>> GetJournal([FromQuery] int limit = 50) => Ok(_journals.List(limit));
 }
-
-/// <summary>
-/// Last scan summary.
-/// </summary>
-/// <param name="LastScanUtc">When the last scan ran.</param>
-/// <param name="VideosScanned">Videos visited.</param>
-/// <param name="VideosChanged">Videos that received tracks.</param>
-/// <param name="Tracks">Tracks attached.</param>
-/// <param name="Errors">Videos that failed.</param>
-public sealed record OuterFilesStatus(DateTime? LastScanUtc, int VideosScanned, int VideosChanged, int Tracks, int Errors);

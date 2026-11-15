@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <AnalysisMode>Recommended</AnalysisMode>
+    <AnalysisMode>Default</AnalysisMode>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,9 +16,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- runtime assets are excluded in the plugin itself, the test host needs the real assemblies -->
-    <PackageReference Include="Jellyfin.Controller" Version="12.2.0" />
-    <PackageReference Include="Jellyfin.Model" Version="12.2.0" />
+    <!-- The plugin excludes Jellyfin runtime assets (the server provides them); the test host needs them. -->
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)" />
+    <!-- Real host naming code for contract tests (docs/ARCHITECTURE.md, P11). -->
+    <PackageReference Include="Jellyfin.Naming" Version="$(JellyfinVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
 </Project>

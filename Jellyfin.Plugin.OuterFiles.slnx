@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Jellyfin.Plugin.OuterFiles.Domain/Jellyfin.Plugin.OuterFiles.Domain.csproj" />
   <Project Path="Jellyfin.Plugin.OuterFiles/Jellyfin.Plugin.OuterFiles.csproj" />
+  <Project Path="tests/Jellyfin.Plugin.OuterFiles.Domain.Tests/Jellyfin.Plugin.OuterFiles.Domain.Tests.csproj" />
   <Project Path="tests/Jellyfin.Plugin.OuterFiles.Tests/Jellyfin.Plugin.OuterFiles.Tests.csproj" />
 </Solution>
