@@ -10,134 +10,111 @@
             <div class="content-primary">
                 <div class="sectionTitleContainer flex align-items-center">
                     <h2 class="sectionTitle">Outer Files</h2>
-                </div>
-                <p class="fieldDescription">
-                    Links audio and subtitle files that live in sub folders of a video folder to that video,
-                    using the same mechanism Jellyfin uses for files next to the video. Media files are never modified.
-                </p>
-
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="AudioExtensions">Audio extensions</label>
-                    <input id="AudioExtensions" name="AudioExtensions" type="text" is="emby-input" />
-                    <div class="fieldDescription">Comma separated list, for example <code>.mka,.flac</code></div>
+                    <a is="emby-linkbutton" class="raised button-alt headerHelpButton" href="#/configurationpage?name=OuterFilesOrganize">Organize…</a>
                 </div>
 
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="HistoryLimit">History limit</label>
-                    <input id="HistoryLimit" name="HistoryLimit" type="number" is="emby-input" min="1" max="5000" />
-                    <div class="fieldDescription">How many videos to remember on this page.</div>
-                </div>
+                <div id="OfStatus" class="fieldDescription" style="margin-bottom:1.5em"></div>
 
-                <div>
-                    <button is="emby-button" type="submit" class="raised button-submit block emby-button" id="SaveOuterFiles">
-                        <span>Save</span>
-                    </button>
-                </div>
+                <form id="OfForm">
+                    <h3>Link mode</h3>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="EnableLinks" />
+                        <span>Link audio and subtitle files from sub folders after every library scan</span>
+                    </label>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DefaultAudioLanguage">Language of external audio without a language in its name</label>
+                        <input id="DefaultAudioLanguage" type="text" is="emby-input" maxlength="3" />
+                        <div class="fieldDescription">ISO 639-2 code, e.g. <code>rus</code>, <code>jpn</code>, <code>eng</code>. Subtitles are recognised from their text instead.</div>
+                    </div>
+                    <button is="emby-button" type="button" class="raised emby-button" id="OfRunLinks"><span>Link now</span></button>
 
-                <div style="margin-top:2em">
-                    <h3 class="sectionTitle sectionTitle-cards">Last scan</h3>
-                    <p id="OuterFilesStatus" class="fieldDescription">No scan has run yet.</p>
-                    <button is="emby-button" type="button" class="raised emby-button" id="RunOuterFilesScan">
-                        <span>Scan now</span>
-                    </button>
-                    <p class="fieldDescription">
-                        The same scan runs as the scheduled task <strong>Attach outer audio and subtitle files</strong>
-                        (Dashboard → Scheduled Tasks) and after a library scan if that task is enabled there.
-                    </p>
-                </div>
+                    <h3 style="margin-top:2em">Episode recognition</h3>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="EnableNamingRules" />
+                        <span>Fix episode numbers of release names (years in folder names, <code>[Grp]_Show_07_(…)</code>, <code>Show_[61_of_62]</code>, <code>Show TV-2 - 10</code>)</span>
+                    </label>
+                    <div class="fieldDescription">Installed only after a self-test on this server; switching it off restores Jellyfin's own rules immediately.</div>
 
-                <div style="margin-top:2em">
-                    <h3 class="sectionTitle sectionTitle-cards">Recently attached</h3>
-                    <div id="OuterFilesVideos"></div>
-                </div>
+                    <h3 style="margin-top:2em">Organize mode</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TitleLanguage">Language of titles</label>
+                        <input id="TitleLanguage" type="text" is="emby-input" maxlength="5" />
+                    </div>
+                    <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="SeriesFolderTemplate">Series folder</label><input id="SeriesFolderTemplate" type="text" is="emby-input" /></div>
+                    <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="SeasonFolderTemplate">Season folder</label><input id="SeasonFolderTemplate" type="text" is="emby-input" /></div>
+                    <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="EpisodeFileTemplate">Episode file</label><input id="EpisodeFileTemplate" type="text" is="emby-input" /></div>
+                    <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="MovieFolderTemplate">Movie folder</label><input id="MovieFolderTemplate" type="text" is="emby-input" /></div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MovieFileTemplate">Movie file</label><input id="MovieFileTemplate" type="text" is="emby-input" />
+                        <div class="fieldDescription">Tokens: <code>{Series Title}</code> <code>{Movie Title}</code> <code>{Year}</code> <code>{season:00}</code> <code>{episode:00}</code> <code>{-Eend:00}</code> <code>{Episode Title}</code> <code>{Quality}</code>. Empty tokens disappear with their brackets and dashes.</div>
+                    </div>
+
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
+                </form>
+
+                <h3 style="margin-top:2em">Last link run</h3>
+                <div id="OfLinks" class="fieldDescription">No run yet.</div>
             </div>
         </div>
         <script type="text/javascript">
-            var OuterFiles = {
-                pluginUniqueId: '3dcc5bff-46c4-4ed9-aa71-67b520faee96',
-                api: function (path, method) {
-                    return ApiClient.ajax({
-                        type: method || 'GET',
-                        url: ApiClient.getUrl('OuterFiles/' + path),
-                        dataType: 'json'
-                    });
-                }
-            };
+            (function () {
+                var pluginId = '3dcc5bff-46c4-4ed9-aa71-67b520faee96';
+                var fields = ['DefaultAudioLanguage', 'TitleLanguage', 'SeriesFolderTemplate', 'SeasonFolderTemplate', 'EpisodeFileTemplate', 'MovieFolderTemplate', 'MovieFileTemplate'];
+                var checks = ['EnableLinks', 'EnableNamingRules'];
+                var page = document.querySelector('#OuterFilesConfigPage');
 
-            function outerFilesRenderStatus(status) {
-                var el = document.querySelector('#OuterFilesStatus');
-                if (!status.LastScanUtc) {
-                    el.innerText = 'No scan has run yet.';
-                    return;
-                }
-                var when = new Date(status.LastScanUtc).toLocaleString();
-                el.innerText = 'Last scan: ' + when + ' — videos inspected: ' + status.VideosScanned +
-                    ', videos changed: ' + status.VideosChanged + ', tracks attached: ' + status.Tracks +
-                    ', errors: ' + status.Errors;
-            }
+                function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+                function api(path, method) { return ApiClient.ajax({ type: method || 'GET', url: ApiClient.getUrl('OuterFiles/' + path), dataType: method === 'POST' ? undefined : 'json' }); }
 
-            function outerFilesRenderVideos(list) {
-                var box = document.querySelector('#OuterFilesVideos');
-                box.innerHTML = '';
-                if (!list || !list.length) {
-                    box.innerHTML = '<p class="fieldDescription">Nothing attached yet.</p>';
-                    return;
+                function renderStatus(s) {
+                    var n = s.NamingRules || {};
+                    var html = '<div><strong>Episode recognition:</strong> ' + esc(n.Message || '') + '</div>';
+                    if (n.Failures && n.Failures.length) { html += '<ul>' + n.Failures.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>'; }
+                    if (s.Running) { html += '<div><strong>Running:</strong> ' + esc(s.Running) + '</div>'; }
+                    page.querySelector('#OfStatus').innerHTML = html;
+                    var r = s.LastLinkRun;
+                    if (!r) { return; }
+                    var lines = [
+                        'Finished ' + new Date(r.FinishedUtc).toLocaleString(),
+                        r.Videos + ' videos, ' + r.OuterTracks + ' tracks in sub folders, ' + r.HostHandled + ' next to their video',
+                        r.Created + ' links created, ' + r.Removed + ' removed, ' + r.Refreshed + ' items refreshed',
+                        r.Unmatched + ' tracks without a matching video'
+                    ];
+                    var out = '<div>' + lines.map(esc).join('<br/>') + '</div>';
+                    if (r.Errors && r.Errors.length) { out += '<div style="color:#e57373">' + r.Errors.map(esc).join('<br/>') + '</div>'; }
+                    if (r.UnmatchedSample && r.UnmatchedSample.length) {
+                        out += '<details><summary>Unmatched tracks</summary><ul>' + r.UnmatchedSample.map(function (p) { return '<li><code>' + esc(p) + '</code></li>'; }).join('') + '</ul></details>';
+                    }
+                    page.querySelector('#OfLinks').innerHTML = out;
                 }
-                var html = '<ul class="fieldDescription">';
-                list.forEach(function (v) {
-                    html += '<li><code>' + jellyfinEscape(v.Path) + '</code> — ' + v.TrackCount + ' tracks</li>';
+
+                function load() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+                        fields.forEach(function (f) { page.querySelector('#' + f).value = c[f] || ''; });
+                        checks.forEach(function (f) { page.querySelector('#' + f).checked = !!c[f]; });
+                        return api('Status');
+                    }).then(renderStatus).finally(function () { Dashboard.hideLoadingMsg(); });
+                }
+
+                page.addEventListener('pageshow', load);
+                page.querySelector('#OfRunLinks').addEventListener('click', function () {
+                    api('Links/Reconcile', 'POST').then(function () { Dashboard.alert('Link run queued. See Dashboard → Scheduled tasks.'); });
                 });
-                html += '</ul>';
-                box.innerHTML = html;
-            }
-
-            function jellyfinEscape(value) {
-                return String(value)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-            }
-
-            function outerFilesLoad() {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
-                    document.querySelector('#AudioExtensions').value = config.AudioExtensions || '.mka,.flac';
-                    document.querySelector('#HistoryLimit').value = config.HistoryLimit || 200;
-                    outerFilesRefreshStatus();
-                    Dashboard.hideLoadingMsg();
-                });
-            }
-
-            function outerFilesRefreshStatus() {
-                OuterFiles.api('Status').then(outerFilesRenderStatus);
-                OuterFiles.api('Videos?limit=50').then(outerFilesRenderVideos);
-            }
-
-            document.querySelector('#OuterFilesConfigPage').addEventListener('pageshow', outerFilesLoad);
-
-            document.querySelector('#SaveOuterFiles').addEventListener('click', function (e) {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
-                    config.AudioExtensions = document.querySelector('#AudioExtensions').value;
-                    config.HistoryLimit = parseInt(document.querySelector('#HistoryLimit').value, 10) || 200;
-                    ApiClient.updatePluginConfiguration(OuterFiles.pluginUniqueId, config).then(function (result) {
-                        Dashboard.hideLoadingMsg();
+                page.querySelector('#OfForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+                        fields.forEach(function (f) { c[f] = page.querySelector('#' + f).value; });
+                        checks.forEach(function (f) { c[f] = page.querySelector('#' + f).checked; });
+                        return ApiClient.updatePluginConfiguration(pluginId, c);
+                    }).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
-                    });
+                        return api('Status').then(renderStatus);
+                    }).finally(function () { Dashboard.hideLoadingMsg(); });
+                    return false;
                 });
-                e.preventDefault();
-                return false;
-            });
-
-            document.querySelector('#RunOuterFilesScan').addEventListener('click', function () {
-                Dashboard.showLoadingMsg();
-                OuterFiles.api('Scan', 'POST').then(function (result) {
-                    Dashboard.hideLoadingMsg();
-                    Dashboard.alert('Scan finished: ' + result.VideosChanged + ' videos changed, ' +
-                        result.AttachedTracks + ' tracks attached, ' + result.Errors + ' errors.');
-                    outerFilesRefreshStatus();
-                });
-            });
+            })();
         </script>
     </div>
 </body>

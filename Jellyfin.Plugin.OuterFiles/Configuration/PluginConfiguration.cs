@@ -1,59 +1,37 @@
-using System;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.OuterFiles.Configuration;
 
 /// <summary>
-/// Plugin configuration.
+/// Plugin settings. Scalars only: Jellyfin stores plugin configuration with <c>XmlSerializer</c>, which
+/// cannot reflect lists of custom types (that broke 0.1.0). Tested by <c>PluginConfigurationTests</c>.
 /// </summary>
-/// <remarks>
-/// Jellyfin stores plugin configuration with <see cref="System.Xml.Serialization.XmlSerializer"/>, which cannot
-/// reflect generic collections of custom types. Every property here therefore stays a scalar; the scan history
-/// is kept as JSON in the plugin data folder by <see cref="ScanHistory"/>.
-/// </remarks>
 public class PluginConfiguration : BasePluginConfiguration
 {
-    /// <summary>
-    /// Gets or sets the audio file extensions treated as external audio tracks, comma separated.
-    /// </summary>
-    public string AudioExtensions { get; set; } = ".mka,.flac,.aac,.ac3,.dts,.eac3,.opus,.mp3";
+    /// <summary>Gets or sets a value indicating whether link mode runs after library scans.</summary>
+    public bool EnableLinks { get; set; } = true;
 
-    /// <summary>
-    /// Gets or sets the maximum number of entries kept in the scan history.
-    /// </summary>
-    public int HistoryLimit { get; set; } = 200;
+    /// <summary>Gets or sets a value indicating whether the plugin's episode naming rules are installed.</summary>
+    public bool EnableNamingRules { get; set; } = true;
 
-    /// <summary>
-    /// Gets or sets the UTC time of the last scan.
-    /// </summary>
-    public DateTime? LastScanUtc { get; set; }
+    /// <summary>Gets or sets the language for external audio whose language cannot be found (ISO 639-2).</summary>
+    public string DefaultAudioLanguage { get; set; } = "rus";
 
-    /// <summary>
-    /// Gets or sets the number of videos that changed during the last scan.
-    /// </summary>
-    public int LastScanChanged { get; set; }
+    /// <summary>Gets or sets the metadata language for titles in organize mode (ISO 639-1, e.g. "en").</summary>
+    public string TitleLanguage { get; set; } = "en";
 
-    /// <summary>
-    /// Gets or sets the number of tracks attached during the last scan.
-    /// </summary>
-    public int LastScanTracks { get; set; }
+    /// <summary>Gets or sets the series folder template.</summary>
+    public string SeriesFolderTemplate { get; set; } = "{Series Title} ({Year})";
 
-    /// <summary>
-    /// Gets or sets the number of videos visited during the last scan.
-    /// </summary>
-    public int LastScanScanned { get; set; }
+    /// <summary>Gets or sets the season folder template.</summary>
+    public string SeasonFolderTemplate { get; set; } = "Season {season:00}";
 
-    /// <summary>
-    /// Gets or sets the number of errors during the last scan.
-    /// </summary>
-    public int LastScanErrors { get; set; }
+    /// <summary>Gets or sets the episode file template (without extension).</summary>
+    public string EpisodeFileTemplate { get; set; } = "{Series Title} ({Year}) - S{season:00}E{episode:00}{-Eend:00} - {Episode Title} {Quality}";
 
-    /// <summary>
-    /// Splits <see cref="AudioExtensions"/> into a set of lower case extensions with the dot.
-    /// </summary>
-    /// <returns>Extensions such as ".mka".</returns>
-    public string[] GetAudioExtensions()
-        => string.IsNullOrWhiteSpace(AudioExtensions)
-            ? [".mka", ".flac"]
-            : AudioExtensions.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    /// <summary>Gets or sets the movie folder template.</summary>
+    public string MovieFolderTemplate { get; set; } = "{Movie Title} ({Year})";
+
+    /// <summary>Gets or sets the movie file template (without extension).</summary>
+    public string MovieFileTemplate { get; set; } = "{Movie Title} ({Year}) {Quality}";
 }

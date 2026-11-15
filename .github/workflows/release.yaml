@@ -44,7 +44,7 @@ jobs:
         run: pip install jprm==1.1.0
 
       - name: Run tests
-        run: dotnet test tests/Jellyfin.Plugin.OuterFiles.Tests/Jellyfin.Plugin.OuterFiles.Tests.csproj -c Release
+        run: dotnet test Jellyfin.Plugin.OuterFiles.slnx -c Release
 
       - name: Build plugin zip
         run: |

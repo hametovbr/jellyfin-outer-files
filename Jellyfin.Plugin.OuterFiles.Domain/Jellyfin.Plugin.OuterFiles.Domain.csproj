@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain: decisions only. No reference to Jellyfin, no file system access.
+       See docs/ARCHITECTURE.md, pattern P2. -->
+  <PropertyGroup>
+    <RootNamespace>Jellyfin.Plugin.OuterFiles.Domain</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.OuterFiles.Domain</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jellyfin.Plugin.OuterFiles.Domain.Tests" />
+  </ItemGroup>
+
+</Project>

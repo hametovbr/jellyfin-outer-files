@@ -17,6 +17,6 @@
       }
     ],
     "image": "thumb.png",
-    "imageUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.1/outer-files/thumb.png"
+    "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png"
   }
 ]

@@ -1,94 +1,102 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Jellyfin.Plugin.OuterFiles.Configuration;
-using Jellyfin.Plugin.OuterFiles.Matching;
+using Jellyfin.Plugin.OuterFiles.IO;
+using Jellyfin.Plugin.OuterFiles.Services;
+using Jellyfin.Plugin.OuterFiles.Tasks;
 using MediaBrowser.Common.Api;
+using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.OuterFiles.Api;
 
 /// <summary>
-/// Plugin API endpoints.
+/// Thin HTTP surface for status and link mode. Endpoints only read state or hand work to services
+/// (docs/ARCHITECTURE.md, P9). Organize endpoints live in OrganizeController.
 /// </summary>
 [ApiController]
 [Route("OuterFiles")]
 [Authorize(Policy = Policies.RequiresElevation)]
 public class OuterFilesController : ControllerBase
 {
-    private readonly OuterFileScanner _scanner;
+    private readonly JournalStore _journals;
+    private readonly ReportStore _reports;
+    private readonly LinkReconciler _links;
+    private readonly OperationGate _gate;
+    private readonly ITaskManager _taskManager;
+    private readonly NamingRulesService _naming;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OuterFilesController"/> class.
     /// </summary>
-    /// <param name="scanner">Scanner.</param>
-    public OuterFilesController(OuterFileScanner scanner)
+    /// <param name="journals">Journal store.</param>
+    /// <param name="reports">Report store.</param>
+    /// <param name="links">Link reconciler.</param>
+    /// <param name="gate">Operation gate.</param>
+    /// <param name="taskManager">Task manager.</param>
+    /// <param name="naming">Naming rules service.</param>
+    public OuterFilesController(JournalStore journals, ReportStore reports, LinkReconciler links, OperationGate gate, ITaskManager taskManager, NamingRulesService naming)
     {
-        _scanner = scanner;
+        _journals = journals;
+        _reports = reports;
+        _links = links;
+        _gate = gate;
+        _taskManager = taskManager;
+        _naming = naming;
     }
 
     /// <summary>
-    /// Returns the last scan summary.
+    /// Plugin status: running operation, naming rules, last link run.
     /// </summary>
-    /// <returns>Summary.</returns>
+    /// <returns>Status.</returns>
     [HttpGet("Status")]
-    public ActionResult<OuterFilesStatus> GetStatus()
+    public ActionResult<OuterFilesStatus> GetStatus() => Ok(new OuterFilesStatus(
+        _gate.Current,
+        Plugin.Instance?.Configuration.EnableLinks ?? false,
+        _naming.State,
+        _reports.Load<LinkReport>("links")));
+
+    /// <summary>
+    /// Shows what link mode would do for one video.
+    /// </summary>
+    /// <param name="itemId">Item id.</param>
+    /// <returns>Preview.</returns>
+    [HttpGet("Links/Preview/{itemId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<LinkPreview> PreviewLinks([FromRoute] Guid itemId)
     {
-        var config = Plugin.Instance!.Configuration;
-        return Ok(new OuterFilesStatus(
-            config.LastScanUtc,
-            config.LastScanScanned,
-            config.LastScanChanged,
-            config.LastScanTracks,
-            config.LastScanErrors));
+        var preview = _links.Preview(itemId, Plugin.Instance!.Configuration);
+        return preview is null ? NotFound() : Ok(preview);
     }
 
     /// <summary>
-    /// Returns the videos that received outer files, newest first.
+    /// Queues a link run (the scheduled task); returns immediately.
+    /// </summary>
+    /// <returns>202 Accepted.</returns>
+    [HttpPost("Links/Reconcile")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public ActionResult ReconcileLinks()
+    {
+        _taskManager.QueueScheduledTask<LinkScheduledTask>();
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Lists applied operations, newest first.
     /// </summary>
     /// <param name="limit">Maximum number of entries.</param>
-    /// <returns>List of videos.</returns>
-    [HttpGet("Videos")]
-    public ActionResult<IEnumerable<VideoOuterFiles>> GetVideos([FromQuery] int limit = 50)
-    {
-        var entries = new ScanHistory(Plugin.Instance!.DataFolderPath).Load();
-        return Ok(entries.Take(Math.Max(1, limit)));
-    }
-
-    /// <summary>
-    /// Runs a scan now.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Scan result.</returns>
-    [HttpPost("Scan")]
-    public async Task<ActionResult<ScanResult>> Scan(CancellationToken cancellationToken)
-    {
-        var result = await _scanner.ScanAsync(Plugin.Instance!.Configuration, null, cancellationToken).ConfigureAwait(false);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Explains which files would be attached to a single video, without touching the library.
-    /// </summary>
-    /// <param name="itemId">Video item id.</param>
-    /// <returns>List of matches.</returns>
-    [HttpGet("Preview/{itemId}")]
-    public ActionResult<IEnumerable<PreviewEntry>> Preview([FromRoute] Guid itemId)
-    {
-        var matches = _scanner.Preview(itemId);
-        return matches is null ? NotFound() : Ok(matches);
-    }
+    /// <returns>Journal summaries.</returns>
+    [HttpGet("Journal")]
+    public ActionResult<IReadOnlyList<JournalSummary>> GetJournal([FromQuery] int limit = 50) => Ok(_journals.List(limit));
 }
 
 /// <summary>
-/// Last scan summary.
+/// Plugin status.
 /// </summary>
-/// <param name="LastScanUtc">When the last scan ran.</param>
-/// <param name="VideosScanned">Videos visited.</param>
-/// <param name="VideosChanged">Videos that received tracks.</param>
-/// <param name="Tracks">Tracks attached.</param>
-/// <param name="Errors">Videos that failed.</param>
-public sealed record OuterFilesStatus(DateTime? LastScanUtc, int VideosScanned, int VideosChanged, int Tracks, int Errors);
+/// <param name="Running">Name of the running operation or null.</param>
+/// <param name="LinksEnabled">Link mode enabled.</param>
+/// <param name="NamingRules">State of the naming rules.</param>
+/// <param name="LastLinkRun">Last link report.</param>
+public sealed record OuterFilesStatus(string? Running, bool LinksEnabled, NamingRulesState NamingRules, LinkReport? LastLinkRun);
