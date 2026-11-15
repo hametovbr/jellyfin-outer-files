@@ -77,10 +77,9 @@ public sealed class OrganizeService
                 ["movie title"] = release.Title,
                 ["year"] = release.Year,
             }));
-            if (!string.Equals(expectedRoot, release.Root, StringComparison.Ordinal))
-            {
-                problems.Add("folder name");
-            }
+            // The folder name alone is not a reason to list a release: Jellyfin's title may be localized
+            // ("Мстители: Эра Альтрона") while the folder is fine. It is shown next to real problems.
+            var folderDiffers = !string.Equals(expectedRoot, release.Root, StringComparison.Ordinal);
 
             if (!release.IsMovie)
             {
@@ -112,6 +111,11 @@ public sealed class OrganizeService
 
             if (problems.Count > 0)
             {
+                if (folderDiffers)
+                {
+                    problems.Add("folder name differs from the template");
+                }
+
                 result.Add(new Candidate(release.Root, Path.GetFileName(release.Root), release.IsMovie, release.Title, release.Year, release.Videos.Count, problems));
             }
         }
