@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1.0
+
+- Fix: the scheduled task failed with "There was an error reflecting type ...PluginConfiguration".
+  Jellyfin stores plugin configuration as XML and `XmlSerializer` cannot reflect collections of custom
+  types. All settings are scalars now and the scan history lives in `history.json` in the plugin folder.
+- Fix: `GET /OuterFiles/Status` returned 500 for the same reason.
+- Status reports inspected / changed / attached / failed counts.
+
 ## 0.1.0.0
 
 - Initial release.

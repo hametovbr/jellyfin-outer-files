@@ -17,4 +17,10 @@
     <ProjectReference Include="..\..\Jellyfin.Plugin.OuterFiles\Jellyfin.Plugin.OuterFiles.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- runtime assets are excluded in the plugin itself, the test host needs the real assemblies -->
+    <PackageReference Include="Jellyfin.Controller" Version="12.2.0" />
+    <PackageReference Include="Jellyfin.Model" Version="12.2.0" />
+  </ItemGroup>
+
 </Project>

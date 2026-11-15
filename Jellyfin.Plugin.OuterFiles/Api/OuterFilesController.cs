@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.OuterFiles.Configuration;
@@ -37,7 +38,12 @@ public class OuterFilesController : ControllerBase
     public ActionResult<OuterFilesStatus> GetStatus()
     {
         var config = Plugin.Instance!.Configuration;
-        return Ok(new OuterFilesStatus(config.LastScanUtc, config.LastScanChanged, config.LastScanTracks, config.Videos.Count));
+        return Ok(new OuterFilesStatus(
+            config.LastScanUtc,
+            config.LastScanScanned,
+            config.LastScanChanged,
+            config.LastScanTracks,
+            config.LastScanErrors));
     }
 
     /// <summary>
@@ -48,8 +54,8 @@ public class OuterFilesController : ControllerBase
     [HttpGet("Videos")]
     public ActionResult<IEnumerable<VideoOuterFiles>> GetVideos([FromQuery] int limit = 50)
     {
-        var config = Plugin.Instance!.Configuration;
-        return Ok(config.Videos.Count > limit ? config.Videos.GetRange(0, Math.Max(0, limit)) : config.Videos);
+        var entries = new ScanHistory(Plugin.Instance!.DataFolderPath).Load();
+        return Ok(entries.Take(Math.Max(1, limit)));
     }
 
     /// <summary>
@@ -81,7 +87,8 @@ public class OuterFilesController : ControllerBase
 /// Last scan summary.
 /// </summary>
 /// <param name="LastScanUtc">When the last scan ran.</param>
-/// <param name="VideosChanged">Videos changed.</param>
+/// <param name="VideosScanned">Videos visited.</param>
+/// <param name="VideosChanged">Videos that received tracks.</param>
 /// <param name="Tracks">Tracks attached.</param>
-/// <param name="HistoryCount">Entries in history.</param>
-public sealed record OuterFilesStatus(DateTime? LastScanUtc, int VideosChanged, int Tracks, int HistoryCount);
+/// <param name="Errors">Videos that failed.</param>
+public sealed record OuterFilesStatus(DateTime? LastScanUtc, int VideosScanned, int VideosChanged, int Tracks, int Errors);

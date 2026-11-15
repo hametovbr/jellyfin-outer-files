@@ -112,8 +112,13 @@ public sealed class OuterFileScanner
         config.LastScanUtc = DateTime.UtcNow;
         config.LastScanChanged = changed;
         config.LastScanTracks = tracks;
-        config.Videos = history.Take(Math.Max(1, config.HistoryLimit)).ToList();
+        config.LastScanScanned = videos.Count;
+        config.LastScanErrors = errors;
         Plugin.Instance?.SaveConfiguration();
+
+        var historyStore = new ScanHistory(Plugin.Instance?.DataFolderPath);
+        var previous = historyStore.Load().Where(v => history.All(h => h.ItemId != v.ItemId));
+        historyStore.Save(history.Concat(previous), config.HistoryLimit);
         progress?.Report(100);
 
         _logger.LogInformation("Outer files: done, {Changed} videos changed, {Tracks} tracks, {Errors} errors", changed, tracks, errors);
@@ -251,7 +256,7 @@ public sealed class OuterFileScanner
     private List<TrackCandidate> FindCandidates(string folder, PluginConfiguration config)
     {
         var subtitles = new HashSet<string>(OuterFileMatcher.SubtitleExtensions, StringComparer.OrdinalIgnoreCase);
-        var audio = new HashSet<string>(config.AudioExtensions, StringComparer.OrdinalIgnoreCase);
+        var audio = new HashSet<string>(config.GetAudioExtensions(), StringComparer.OrdinalIgnoreCase);
         var result = new List<TrackCandidate>();
 
         IEnumerable<FileSystemMetadata> files;
@@ -346,12 +351,3 @@ public sealed class OuterFileScanner
 /// <param name="AttachedTracks">Tracks attached.</param>
 /// <param name="Errors">Videos that failed.</param>
 public sealed record ScanResult(int VideosScanned, int VideosChanged, int AttachedTracks, int Errors);
-
-/// <summary>
-/// A video that received outer files.
-/// </summary>
-/// <param name="ItemId">Jellyfin item id.</param>
-/// <param name="Path">File path.</param>
-/// <param name="TrackCount">Number of attached tracks.</param>
-/// <param name="ScannedAt">When it was attached.</param>
-public sealed record VideoOuterFiles(Guid ItemId, string Path, int TrackCount, DateTime ScannedAt);

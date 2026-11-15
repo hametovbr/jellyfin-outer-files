@@ -71,8 +71,9 @@
                     return;
                 }
                 var when = new Date(status.LastScanUtc).toLocaleString();
-                el.innerText = 'Last scan: ' + when + ' — videos changed: ' + status.VideosChanged +
-                    ', tracks attached: ' + status.Tracks + ', history entries: ' + status.HistoryCount;
+                el.innerText = 'Last scan: ' + when + ' — videos inspected: ' + status.VideosScanned +
+                    ', videos changed: ' + status.VideosChanged + ', tracks attached: ' + status.Tracks +
+                    ', errors: ' + status.Errors;
             }
 
             function outerFilesRenderVideos(list) {
@@ -100,7 +101,7 @@
             function outerFilesLoad() {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
-                    document.querySelector('#AudioExtensions').value = (config.AudioExtensions || []).join(',');
+                    document.querySelector('#AudioExtensions').value = config.AudioExtensions || '.mka,.flac';
                     document.querySelector('#HistoryLimit').value = config.HistoryLimit || 200;
                     outerFilesRefreshStatus();
                     Dashboard.hideLoadingMsg();
@@ -117,8 +118,7 @@
             document.querySelector('#SaveOuterFiles').addEventListener('click', function (e) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(OuterFiles.pluginUniqueId).then(function (config) {
-                    config.AudioExtensions = document.querySelector('#AudioExtensions').value
-                        .split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+                    config.AudioExtensions = document.querySelector('#AudioExtensions').value;
                     config.HistoryLimit = parseInt(document.querySelector('#HistoryLimit').value, 10) || 200;
                     ApiClient.updatePluginConfiguration(OuterFiles.pluginUniqueId, config).then(function (result) {
                         Dashboard.hideLoadingMsg();
