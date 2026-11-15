@@ -1,2 +1,249 @@
 <!DOCTYPE html>
-<html><body><div id="OuterFilesOrganizePage" data-role="page" class="page type-interior"><p>Organize</p></div></body></html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Outer Files: Organize</title>
+</head>
+<body>
+    <div id="OuterFilesOrganizePage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <style>
+            #OuterFilesOrganizePage table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+            #OuterFilesOrganizePage th, #OuterFilesOrganizePage td { text-align: left; padding: 0.3em 0.5em; border-bottom: 1px solid rgba(128,128,128,0.25); vertical-align: top; }
+            #OuterFilesOrganizePage input.of-n { width: 4em; }
+            #OuterFilesOrganizePage .of-bad { color: #e57373; }
+            #OuterFilesOrganizePage .of-dim { opacity: 0.65; }
+            #OuterFilesOrganizePage .of-section { margin-top: 2em; }
+            #OuterFilesOrganizePage .of-hit { cursor: pointer; padding: 0.4em; border-radius: 4px; }
+            #OuterFilesOrganizePage .of-hit:hover { background: rgba(128,128,128,0.2); }
+            #OuterFilesOrganizePage code { word-break: break-all; }
+        </style>
+        <div data-role="content">
+            <div class="content-primary">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Outer Files: Organize</h2>
+                    <a is="emby-linkbutton" class="raised button-alt headerHelpButton" href="#/configurationpage?name=OuterFiles">Settings</a>
+                </div>
+                <p class="fieldDescription">Pick a release, check how its files map to episodes, review the plan, apply it. Every applied plan can be undone from the journal below. Nothing is overwritten or deleted: stale per-episode <code>.nfo</code> files go to a hidden <code>.outer-files-trash</code> folder in the library.</p>
+
+                <div id="OfCandidatesBox">
+                    <div class="flex align-items-center">
+                        <h3 style="flex-grow:1">Releases that need attention</h3>
+                        <button is="emby-button" type="button" class="raised emby-button" id="OfRefresh"><span>Refresh</span></button>
+                    </div>
+                    <div id="OfCandidates" class="fieldDescription">Press Refresh to scan the library.</div>
+                </div>
+
+                <div id="OfAnalysisBox" class="of-section" style="display:none">
+                    <h3 id="OfRoot"></h3>
+                    <div class="flex" style="gap:1em;flex-wrap:wrap">
+                        <div class="inputContainer" style="flex:3;min-width:16em"><label class="inputLabel" for="OfTitle">Title</label><input id="OfTitle" type="text" is="emby-input" /></div>
+                        <div class="inputContainer" style="flex:1;min-width:6em"><label class="inputLabel" for="OfYear">Year</label><input id="OfYear" type="number" is="emby-input" /></div>
+                        <div class="inputContainer" style="flex:3;min-width:16em"><label class="inputLabel" for="OfIds">Provider ids</label><input id="OfIds" type="text" is="emby-input" /></div>
+                    </div>
+                    <div class="fieldDescription">Ids like <code>Tmdb=12345, Tvdb=67890</code>; episode titles are fetched with them. Search to pick the right series.</div>
+                    <div style="margin:0.5em 0">
+                        <button is="emby-button" type="button" class="raised emby-button" id="OfSearch"><span>Search metadata</span></button>
+                        <button is="emby-button" type="button" class="raised emby-button" id="OfAbsolute"><span>Convert absolute numbers</span></button>
+                    </div>
+                    <div id="OfHits"></div>
+
+                    <h4>Files</h4>
+                    <div id="OfRows"></div>
+                    <div id="OfExtraInfo" class="fieldDescription"></div>
+                    <button is="emby-button" type="button" class="raised button-submit emby-button" id="OfPlan" style="margin-top:1em"><span>Build plan</span></button>
+                </div>
+
+                <div id="OfPlanBox" class="of-section" style="display:none">
+                    <h3>Plan</h3>
+                    <div id="OfPlanView"></div>
+                    <button is="emby-button" type="button" class="raised button-submit emby-button" id="OfApply"><span>Apply</span></button>
+                </div>
+
+                <div class="of-section">
+                    <div class="flex align-items-center">
+                        <h3 style="flex-grow:1">Journal</h3>
+                        <button is="emby-button" type="button" class="raised emby-button" id="OfJournalRefresh"><span>Refresh</span></button>
+                    </div>
+                    <div id="OfJournal" class="fieldDescription"></div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var page = document.querySelector('#OuterFilesOrganizePage');
+                var state = { analysis: null, plan: null };
+                var actions = ['Episode', 'Special', 'Extra', 'Movie', 'Skip'];
+
+                function $(sel) { return page.querySelector(sel); }
+                function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+                function call(method, path, body) {
+                    var opts = { type: method, url: ApiClient.getUrl('OuterFiles/' + path), dataType: 'json' };
+                    if (body !== undefined) { opts.data = JSON.stringify(body); opts.contentType = 'application/json'; }
+                    return ApiClient.ajax(opts);
+                }
+                function busy(promise) {
+                    Dashboard.showLoadingMsg();
+                    return promise.catch(function (e) { Dashboard.alert('Request failed: ' + (e && e.status ? e.status : e)); throw e; })
+                        .finally(function () { Dashboard.hideLoadingMsg(); });
+                }
+                function actionName(a) { return typeof a === 'number' ? ['Skip', 'Episode', 'Special', 'Extra', 'Movie'][a] : a; }
+                function idsText(ids) { return Object.keys(ids || {}).map(function (k) { return k + '=' + ids[k]; }).join(', '); }
+                function idsParse(text) {
+                    var ids = {};
+                    (text || '').split(',').forEach(function (p) { var kv = p.split('='); if (kv.length === 2 && kv[0].trim() && kv[1].trim()) { ids[kv[0].trim()] = kv[1].trim(); } });
+                    return ids;
+                }
+                function num(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+
+                function loadCandidates() {
+                    busy(call('GET', 'Organize/Candidates')).then(function (list) {
+                        if (!list.length) { $('#OfCandidates').innerHTML = 'Every release follows the templates.'; return; }
+                        var html = '<table><tr><th>Folder</th><th>Known as</th><th>Problems</th><th></th></tr>';
+                        list.forEach(function (c, i) {
+                            html += '<tr><td><code>' + esc(c.Name) + '</code><div class="of-dim">' + c.Videos + (c.IsMovie ? ' file(s), movie' : ' videos') + '</div></td><td>' + esc(c.Title) + (c.Year ? ' (' + c.Year + ')' : '') + '</td><td>' + c.Problems.map(esc).join('<br/>') +
+                                '</td><td><button is="emby-button" type="button" class="raised emby-button" data-root="' + esc(c.Root) + '"><span>Organize</span></button></td></tr>';
+                        });
+                        $('#OfCandidates').innerHTML = html + '</table>';
+                        page.querySelectorAll('#OfCandidates button[data-root]').forEach(function (b) {
+                            b.addEventListener('click', function () { analyze(b.getAttribute('data-root')); });
+                        });
+                    });
+                }
+
+                function analyze(root) {
+                    busy(call('POST', 'Organize/Analyze', { Root: root })).then(showAnalysis);
+                }
+
+                function showAnalysis(a) {
+                    state.analysis = a; state.plan = null;
+                    $('#OfPlanBox').style.display = 'none';
+                    $('#OfAnalysisBox').style.display = '';
+                    $('#OfRoot').innerHTML = '<code>' + esc(a.Root) + '</code>';
+                    $('#OfTitle').value = a.Title || '';
+                    $('#OfYear').value = a.Year || '';
+                    if (!$('#OfIds').value || $('#OfIds').getAttribute('data-root') !== a.Root) { $('#OfIds').value = idsText(a.ProviderIds); $('#OfIds').setAttribute('data-root', a.Root); }
+                    $('#OfAbsolute').style.display = a.IsMovie ? 'none' : '';
+                    $('#OfHits').innerHTML = '';
+                    var html = '<table><tr><th>File</th><th>Now</th><th>Action</th><th>S</th><th>E</th><th>to E</th><th>Part</th><th>Why</th></tr>';
+                    a.Rows.forEach(function (r, i) {
+                        var act = actionName(r.Action);
+                        html += '<tr data-i="' + i + '"><td><code>' + esc(r.Relative) + '</code><div class="of-dim">' + r.Sidecars + ' next to it, ' + r.OuterTracks + ' in sub folders</div></td>' +
+                            '<td class="of-dim">' + (r.StoredEpisode !== null && r.StoredEpisode !== undefined ? 'S' + esc(r.StoredSeason) + 'E' + esc(r.StoredEpisode) : '—') + '</td>' +
+                            '<td><select is="emby-select" class="of-act">' + actions.map(function (x) { return '<option' + (x === act ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></td>' +
+                            '<td><input class="of-n of-s" type="number" min="0" value="' + esc(r.Season) + '"/></td>' +
+                            '<td><input class="of-n of-e" type="number" min="0" value="' + esc(r.Episode) + '"/></td>' +
+                            '<td><input class="of-n of-end" type="number" min="0" value="' + esc(r.EpisodeEnd) + '"/></td>' +
+                            '<td><input class="of-n of-part" type="number" min="1" value="' + esc(r.Part) + '"/></td>' +
+                            '<td class="of-dim">' + esc(r.Reason) + '</td></tr>';
+                    });
+                    $('#OfRows').innerHTML = html + '</table>';
+                    var info = [];
+                    if (a.SeasonCounts && a.SeasonCounts.length) { info.push('Episodes per season from metadata: ' + a.SeasonCounts.join(', ')); }
+                    if (a.UnmatchedTracks.length) { info.push('Tracks without a video (left in place): ' + a.UnmatchedTracks.map(esc).join(', ')); }
+                    if (a.Leftovers.length) { info.push('Other files left in place: ' + a.Leftovers.length); }
+                    $('#OfExtraInfo').innerHTML = info.join('<br/>');
+                    $('#OfAnalysisBox').scrollIntoView();
+                }
+
+                function collectRows() {
+                    return Array.prototype.map.call(page.querySelectorAll('#OfRows tr[data-i]'), function (tr) {
+                        var r = state.analysis.Rows[parseInt(tr.getAttribute('data-i'), 10)];
+                        return {
+                            Relative: r.Relative,
+                            Action: tr.querySelector('.of-act').value,
+                            Season: num(tr.querySelector('.of-s').value),
+                            Episode: num(tr.querySelector('.of-e').value),
+                            EpisodeEnd: num(tr.querySelector('.of-end').value),
+                            Part: num(tr.querySelector('.of-part').value)
+                        };
+                    });
+                }
+
+                $('#OfSearch').addEventListener('click', function () {
+                    var a = state.analysis; if (!a) { return; }
+                    var q = 'Organize/Search?name=' + encodeURIComponent($('#OfTitle').value) + '&isMovie=' + (a.IsMovie ? 'true' : 'false') + ($('#OfYear').value ? '&year=' + encodeURIComponent($('#OfYear').value) : '');
+                    busy(call('GET', q)).then(function (hits) {
+                        if (!hits.length) { $('#OfHits').innerHTML = '<div class="fieldDescription">Nothing found.</div>'; return; }
+                        $('#OfHits').innerHTML = hits.map(function (h, i) {
+                            return '<div class="of-hit" data-i="' + i + '"><strong>' + esc(h.Title) + '</strong> ' + (h.Year ? '(' + h.Year + ')' : '') + ' <span class="of-dim">' + esc(h.Provider) + ' · ' + esc(idsText(h.ProviderIds)) + '</span>' +
+                                (h.Overview ? '<div class="of-dim">' + esc(h.Overview.substring(0, 200)) + '</div>' : '') + '</div>';
+                        }).join('');
+                        page.querySelectorAll('#OfHits .of-hit').forEach(function (el) {
+                            el.addEventListener('click', function () {
+                                var h = hits[parseInt(el.getAttribute('data-i'), 10)];
+                                $('#OfTitle').value = h.Title; $('#OfYear').value = h.Year || ''; $('#OfIds').value = idsText(h.ProviderIds);
+                                $('#OfHits').innerHTML = '<div class="fieldDescription">Selected: ' + esc(h.Title) + '</div>';
+                            });
+                        });
+                    });
+                });
+
+                $('#OfAbsolute').addEventListener('click', function () {
+                    var a = state.analysis; if (!a) { return; }
+                    var ids = idsParse($('#OfIds').value);
+                    if (!Object.keys(ids).length) { Dashboard.alert('Pick the series first (provider ids are needed).'); return; }
+                    busy(call('POST', 'Organize/Absolute', { SessionId: a.SessionId, ProviderIds: ids })).then(showAnalysis);
+                });
+
+                $('#OfPlan').addEventListener('click', function () {
+                    var a = state.analysis; if (!a) { return; }
+                    var body = { SessionId: a.SessionId, IsMovie: a.IsMovie, Title: $('#OfTitle').value, Year: num($('#OfYear').value), ProviderIds: idsParse($('#OfIds').value), Rows: collectRows() };
+                    busy(call('POST', 'Organize/Plan', body)).then(function (p) {
+                        state.plan = p;
+                        var html = '<div>New folder: <code>' + esc(p.TargetRoot) + '</code> · ' + p.Operations + ' operations</div>';
+                        if (p.Conflicts.length) {
+                            html += '<div class="of-bad"><strong>Cannot apply:</strong><ul>' + p.Conflicts.map(function (c) { return '<li>' + esc(c.Code) + ': <code>' + esc(c.Path) + '</code> — ' + esc(c.Message) + '</li>'; }).join('') + '</ul></div>';
+                        }
+                        if (p.MissingTitles.length) { html += '<div>No title in the metadata source for: ' + p.MissingTitles.map(esc).join(', ') + '</div>'; }
+                        html += '<table><tr><th>From</th><th>To</th><th></th></tr>' + p.Moves.map(function (m) {
+                            return '<tr><td><code>' + esc(m.From) + '</code></td><td><code>' + esc(m.To) + '</code></td><td class="of-dim">' + esc(m.What) + '</td></tr>';
+                        }).join('') + '</table>';
+                        if (p.LeftInPlace.length) { html += '<details><summary>' + p.LeftInPlace.length + ' files left in place</summary><ul>' + p.LeftInPlace.map(function (f) { return '<li><code>' + esc(f) + '</code></li>'; }).join('') + '</ul></details>'; }
+                        $('#OfPlanView').innerHTML = html;
+                        $('#OfApply').disabled = p.Conflicts.length > 0 || !p.Moves.length;
+                        $('#OfPlanBox').style.display = '';
+                        $('#OfPlanBox').scrollIntoView();
+                    });
+                });
+
+                $('#OfApply').addEventListener('click', function () {
+                    var p = state.plan; if (!p) { return; }
+                    if (!window.confirm('Apply ' + p.Moves.length + ' moves? You can undo from the journal.')) { return; }
+                    busy(call('POST', 'Organize/Apply', { SessionId: p.SessionId, Hash: p.Hash })).then(function (r) {
+                        if (r.Error) { Dashboard.alert('Stopped: ' + r.Error + (r.JournalId ? ' (partial run can be undone from the journal)' : '')); }
+                        else { Dashboard.alert('Done: ' + r.Done + ' steps. A library scan was queued.'); }
+                        $('#OfPlanBox').style.display = 'none'; $('#OfAnalysisBox').style.display = 'none';
+                        state.analysis = null; state.plan = null;
+                        loadJournal();
+                    });
+                });
+
+                function loadJournal() {
+                    call('GET', 'Journal?limit=50').then(function (list) {
+                        var rows = list.filter(function (j) { return j.Kind !== 'links'; });
+                        if (!rows.length) { $('#OfJournal').innerHTML = 'Nothing applied yet.'; return; }
+                        $('#OfJournal').innerHTML = '<table><tr><th>When</th><th>What</th><th>State</th><th></th></tr>' + rows.map(function (j) {
+                            var canUndo = j.Kind === 'organize' && !j.UndoneBy && j.Applied > 0;
+                            return '<tr><td>' + esc(new Date(j.StartedUtc).toLocaleString()) + '</td><td>' + esc(j.Title) + '</td><td>' + esc(j.State) + ', ' + j.Applied + ' steps' + (j.Failed ? ', ' + j.Failed + ' failed' : '') + (j.UndoneBy ? ', undone' : '') +
+                                '</td><td>' + (canUndo ? '<button is="emby-button" type="button" class="raised emby-button" data-undo="' + esc(j.Id) + '"><span>Undo</span></button>' : '') + '</td></tr>';
+                        }).join('') + '</table>';
+                        page.querySelectorAll('#OfJournal button[data-undo]').forEach(function (b) {
+                            b.addEventListener('click', function () {
+                                if (!window.confirm('Undo this run?')) { return; }
+                                busy(call('POST', 'Organize/Undo/' + encodeURIComponent(b.getAttribute('data-undo')))).then(function (r) {
+                                    Dashboard.alert(r.Error ? 'Undo stopped: ' + r.Error : 'Undone: ' + r.Done + ' steps. A library scan was queued.');
+                                    loadJournal();
+                                });
+                            });
+                        });
+                    });
+                }
+
+                $('#OfRefresh').addEventListener('click', loadCandidates);
+                $('#OfJournalRefresh').addEventListener('click', loadJournal);
+                page.addEventListener('pageshow', loadJournal);
+            })();
+        </script>
+    </div>
+</body>
+</html>

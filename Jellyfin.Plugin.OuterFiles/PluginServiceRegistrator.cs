@@ -28,6 +28,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<LinkReconciler>();
         serviceCollection.AddSingleton<IScheduledTask, LinkScheduledTask>();
         serviceCollection.AddSingleton<NamingRulesService>();
+        serviceCollection.AddSingleton<IMetadataSource, MetadataGateway>();
+        serviceCollection.AddSingleton<OrganizeService>();
         serviceCollection.AddHostedService<NamingRulesHostedService>();
     }
 

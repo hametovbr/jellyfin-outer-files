@@ -30,7 +30,7 @@ public sealed class LinkReconcilerTests
         tree.File($"{Rel}/RU Subs/other episode.ass");
         Directory.CreateDirectory(tree.P("meta"));
         var item = Guid.NewGuid();
-        var library = new FakeLibrary(tree, [new VideoRef(item, video, tree.P(Rel), tree.P("meta/library/ab/" + item.ToString("N")), "episode")]);
+        var library = new FakeLibrary(tree.P("meta"), [tree.P("lib")], [new VideoRef(item, video, tree.P(Rel), tree.P("meta/library/ab/" + item.ToString("N")), "episode")]);
         var refresh = new FakeRefresh();
         var reconciler = Create(tree, library, refresh);
         var config = new PluginConfiguration { DefaultAudioLanguage = "rus" };
@@ -71,7 +71,7 @@ public sealed class LinkReconcilerTests
         tree.File($"{Rel}/EN Subs/{Stem}.en_CR.ass");
         Directory.CreateDirectory(tree.P("meta"));
         var item = Guid.NewGuid();
-        var library = new FakeLibrary(tree, [new VideoRef(item, video, tree.P(Rel), tree.P("meta/x/" + item.ToString("N")), "episode")]);
+        var library = new FakeLibrary(tree.P("meta"), [tree.P("lib")], [new VideoRef(item, video, tree.P(Rel), tree.P("meta/x/" + item.ToString("N")), "episode")]);
         var preview = Create(tree, library, new FakeRefresh()).Preview(item, new PluginConfiguration())!;
 
         Assert.Single(preview.Desired);
@@ -96,21 +96,6 @@ public sealed class LinkReconcilerTests
 
     private static string RussianAss() =>
         "[Events]\n" + string.Concat(Enumerable.Repeat("Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Я не могу поверить, что это происходит на самом деле.\n", 8));
-
-    private sealed class FakeLibrary(TempTree tree, IReadOnlyList<VideoRef> videos) : ILibrarySource
-    {
-        public VideoRef Single => videos[0];
-
-        public string InternalMetadataRoot => tree.P("meta");
-
-        public IReadOnlyList<string> LibraryRoots() => [tree.P("lib")];
-
-        public IReadOnlyList<VideoRef> Videos() => videos;
-
-        public VideoRef? Video(Guid id) => videos.FirstOrDefault(v => v.Id == id);
-
-        public IReadOnlyList<(Guid Id, string Path, int? Season, int? Episode)> Episodes() => [];
-    }
 
     private sealed class FakeRefresh : IRefresher
     {

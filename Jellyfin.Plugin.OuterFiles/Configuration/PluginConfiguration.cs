@@ -17,6 +17,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the language for external audio whose language cannot be found (ISO 639-2).</summary>
     public string DefaultAudioLanguage { get; set; } = "rus";
 
+    /// <summary>Gets or sets the metadata language for titles in organize mode (ISO 639-1, e.g. "en").</summary>
+    public string TitleLanguage { get; set; } = "en";
+
     /// <summary>Gets or sets the series folder template.</summary>
     public string SeriesFolderTemplate { get; set; } = "{Series Title} ({Year})";
 
