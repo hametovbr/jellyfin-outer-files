@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "3dcc5bff-46c4-4ed9-aa71-67b520faee96",
+    "name": "Outer Files",
+    "description": "Attaches audio and subtitle files that live in sub folders of a video folder to the video.",
+    "overview": "Attach audio and subtitle files from sub folders to their video",
+    "owner": "hametovbr",
+    "category": "Library",
+    "versions": [
+      {
+        "version": "0.1.0.0",
+        "changelog": "Initial release.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.0/outer-files_0.1.0.0.zip",
+        "checksum": "67c0b2ca403b1ab70ee70d59b0125978",
+        "timestamp": "2026-11-15T18:27:31Z"
+      }
+    ]
+  }
+]

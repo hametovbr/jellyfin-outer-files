@@ -69,31 +69,15 @@ so `Season 1`, `Season 2` and `SPs` never mix.
 
 ### From a plugin repository
 
-The release assets can be served as a plugin repository: put `manifest.json` next to the published zips
-and add the URL under **Dashboard → Plugins → Repositories**.
+The repository contains `manifest.json`, so it can be added like any other third-party source:
+**Dashboard → Plugins → Repositories → +**, paste
 
-```json
-[
-  {
-    "guid": "3dcc5bff-46c4-4ed9-aa71-67b520faee96",
-    "name": "Outer Files",
-    "description": "Attach audio and subtitle files from sub folders to their video",
-    "overview": "Attach audio and subtitle files from sub folders to their video",
-    "owner": "hametovbr",
-    "category": "Library",
-    "versions": [
-      {
-        "version": "0.1.0.0",
-        "changelog": "Initial release.",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.0/outer-files_0.1.0.0.zip",
-        "checksum": "<md5 of the zip, see the .md5sum asset>",
-        "timestamp": "2026-11-15T00:00:00Z"
-      }
-    ]
-  }
-]
 ```
+https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/manifest.json
+```
+
+then install **Outer Files** from **Dashboard → Plugins → Catalog**. The manifest points at the zip asset
+of the GitHub release and carries its MD5, so Jellyfin can install and later update the plugin by itself.
 
 ## Usage
 
