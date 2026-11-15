@@ -1,22 +1,22 @@
 [
-    {
-        "guid": "3dcc5bff-46c4-4ed9-aa71-67b520faee96",
-        "name": "Outer Files",
-        "description": "Jellyfin only picks up external audio and subtitle files that sit next to the video and start with the video file name. Release groups usually put extra tracks and subtitles into sibling folders (\"RU Subs\", \"EN Sound\", \"RU Sound [Anilibria]/\u043d\u0430\u0434\u043f\u0438\u0441\u0438\") or into a sub folder of the video folder. This plugin walks the folder of every video, matches tracks to episodes (or a movie) by their numbers and common prefix, detects language, signs (forced) and studio from folder and file names, and links the tracks as regular external streams. Media files are never modified and no files are created.\n",
-        "overview": "Attach audio and subtitle files from sub folders to their video",
-        "owner": "hametovbr",
-        "category": "Library",
-        "versions": [
-            {
-                "version": "0.1.1.0",
-                "changelog": "0.1.1: plugin settings are stored as scalars; the scan history moved to history.json, so the scheduled task and the settings page work. Added scan counters (inspected/changed/tracks/errors). 0.1.0: initial release.",
-                "targetAbi": "12.0.0.0",
-                "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.1/outer-files/outer-files_0.1.1.0.zip",
-                "checksum": "aa74139449f6e499e5219bd6a6140478",
-                "timestamp": "2026-11-15T21:17:28Z"
-            }
-        ],
-        "image": "thumb.png",
-        "imageUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.1/outer-files/thumb.png"
-    }
+  {
+    "guid": "3dcc5bff-46c4-4ed9-aa71-67b520faee96",
+    "name": "Outer Files",
+    "description": "Jellyfin only picks up external audio and subtitle files that sit next to the video and start with the video file name. Release groups usually put extra tracks and subtitles into sibling folders (\"RU Subs\", \"EN Sound\", \"RU Sound [Anilibria]/надписи\") or into a sub folder of the video folder. This plugin walks the folder of every video, matches tracks to episodes (or a movie) by their numbers and common prefix, detects language, signs (forced) and studio from folder and file names, and links the tracks as regular external streams. Media files are never modified and no files are created.\n",
+    "overview": "Attach audio and subtitle files from sub folders to their video",
+    "owner": "hametovbr",
+    "category": "Library",
+    "versions": [
+      {
+        "version": "0.1.1.0",
+        "changelog": "0.1.1: plugin settings are stored as scalars; the scan history moved to history.json, so the scheduled task and the settings page work. Added scan counters (inspected/changed/tracks/errors). 0.1.0: initial release.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.1/outer-files_0.1.1.0.zip",
+        "checksum": "aa74139449f6e499e5219bd6a6140478",
+        "timestamp": "2026-11-15T21:16:44Z"
+      }
+    ],
+    "image": "thumb.png",
+    "imageUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.1.1/outer-files/thumb.png"
+  }
 ]

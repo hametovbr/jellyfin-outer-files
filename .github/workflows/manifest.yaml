@@ -45,7 +45,11 @@ jobs:
           echo '[]' > tmp/repo/manifest.json
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.zip' -D tmp/zips --clobber
           ZIP=$(ls tmp/zips/*.zip | head -1)
-          jprm repo add --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" tmp/repo "$ZIP"
+          # --url is the base the zip sits under: release assets live flat next to the tag path,
+          # so jprm must see the zip in the repository root, not in a slug sub folder.
+          jprm repo add --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
+            -U "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ZIP")" \
+            tmp/repo "$ZIP"
           cp tmp/repo/manifest.json manifest.json
 
       - name: Commit manifest
