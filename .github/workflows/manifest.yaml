@@ -42,7 +42,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tmp/repo tmp/zips
-          echo '[]' > tmp/repo/manifest.json
+          # Start from the published manifest: earlier versions stay installable (a catalog page loaded before
+          # the update still asks for the previous version, and users can go back to it).
+          if [ -s manifest.json ]; then cp manifest.json tmp/repo/manifest.json; else echo '[]' > tmp/repo/manifest.json; fi
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.zip' -D tmp/zips --clobber
           ZIP=$(ls tmp/zips/*.zip | head -1)
           # --url is the base the zip sits under: release assets live flat next to the tag path,
