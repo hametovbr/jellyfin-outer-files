@@ -20,7 +20,8 @@ public sealed record CatalogEpisode(int Season, int Episode, string Title);
 /// <param name="Part">Part from "(Часть 2)", "Part 2", "pt2", or null.</param>
 /// <param name="Match">The matched episode, or null.</param>
 /// <param name="Score">Similarity of the best candidate (0..1).</param>
-public sealed record TitleMatch(string Video, string FileTitle, int? Part, CatalogEpisode? Match, double Score);
+/// <param name="MatchEnd">Last episode of a double file ("A + B" matched to two adjacent episodes), or null.</param>
+public sealed record TitleMatch(string Video, string FileTitle, int? Part, CatalogEpisode? Match, double Score, CatalogEpisode? MatchEnd = null);
 
 /// <summary>
 /// Matches videos to episodes by the episode title in the file name. Used when a release numbers episodes its
@@ -141,8 +142,48 @@ public static partial class TitleMatcher
         var taken = new Dictionary<(int, int), List<int?>>();
         var result = new Dictionary<string, TitleMatch>(StringComparer.Ordinal);
 
+        // Double files ("A + B") first: every half must be an episode, and the episodes must be neighbours.
+        var episodes = catalog.GroupBy(e => (e.Season, e.Episode)).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var c in candidates.Where(c => c.Title.Contains(" + ", StringComparison.Ordinal) && (c.Ranked.Count == 0 || c.Ranked[0].Score < 0.9)))
+        {
+            var halves = c.Title.Split(" + ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var found = halves.Select(h => Best(h, episodes)).ToList();
+            if (found.Count(f => f is not null) == halves.Length - 1 && halves.Length == 2)
+            {
+                // One half is titled differently by the source: accept the neighbour that resembles it.
+                var known = found.First(f => f is not null)!.Value.Episode;
+                var other = halves[found.FindIndex(f => f is null)];
+                var neighbour = new[] { known.Episode - 1, known.Episode + 1 }
+                    .Where(n => episodes.ContainsKey((known.Season, n)))
+                    .Select(n => (Episode: episodes[(known.Season, n)][0], Score: episodes[(known.Season, n)].Max(e => Similarity(other, e.Title))))
+                    .Where(x => x.Score >= 0.45)
+                    .OrderByDescending(x => x.Score)
+                    .Cast<(CatalogEpisode Episode, double Score)?>()
+                    .FirstOrDefault();
+                found[found.FindIndex(f => f is null)] = neighbour;
+            }
+
+            var score = found.Min(f => f?.Score ?? 0);
+            var numbers = found.Where(f => f is not null).Select(f => f!.Value.Episode).OrderBy(e => e.Episode).ToList();
+            var adjacent = numbers.Count == halves.Length
+                && numbers.Select(e => e.Season).Distinct().Count() == 1
+                && numbers.Zip(numbers.Skip(1), (a, b) => b.Episode - a.Episode).All(d => d == 1);
+            if (!adjacent)
+            {
+                result[c.Video] = new TitleMatch(c.Video, c.Title, c.Part, null, score);
+                continue;
+            }
+
+            foreach (var e in numbers)
+            {
+                (taken[(e.Season, e.Episode)] = taken.GetValueOrDefault((e.Season, e.Episode)) ?? []).Add(null);
+            }
+
+            result[c.Video] = new TitleMatch(c.Video, c.Title, c.Part, numbers[0], score, numbers[^1]);
+        }
+
         // Most certain first, so a weaker file cannot take an episode a better one needs.
-        foreach (var c in candidates.OrderByDescending(c => c.Ranked.Count > 0 ? c.Ranked[0].Score : 0))
+        foreach (var c in candidates.Where(c => !result.ContainsKey(c.Video)).OrderByDescending(c => c.Ranked.Count > 0 ? c.Ranked[0].Score : 0))
         {
             TitleMatch? found = null;
             foreach (var (episode, score) in c.Ranked)
@@ -154,7 +195,8 @@ public static partial class TitleMatcher
 
                 var key = (episode.Season, episode.Episode);
                 var parts = taken.GetValueOrDefault(key);
-                var free = parts is null || (c.Part is not null && parts.All(p => p is not null && p != c.Part));
+                // A second copy of an episode (near-exact title) shares it; duplicates are resolved by the caller.
+                var free = parts is null || score >= 0.9 || (c.Part is not null && parts.All(p => p is not null && p != c.Part));
                 if (!free)
                 {
                     continue;
@@ -175,6 +217,22 @@ public static partial class TitleMatcher
         }
 
         return candidates.Select(c => result[c.Video]).ToList();
+    }
+
+    private static (CatalogEpisode Episode, double Score)? Best(string title, Dictionary<(int Season, int Episode), List<CatalogEpisode>> episodes)
+    {
+        var ranked = episodes.Values
+            .Select(g => (Episode: g[0], Score: g.Max(e => Similarity(title, e.Title))))
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Episode.Season == 0 ? 1 : 0)
+            .Take(2)
+            .ToList();
+        if (ranked.Count == 0 || ranked[0].Score < Threshold || (ranked[0].Score < 0.9 && ranked.Count > 1 && ranked[0].Score - ranked[1].Score < 0.1))
+        {
+            return null;
+        }
+
+        return ranked[0];
     }
 
     private static List<string> Bigrams(string s)

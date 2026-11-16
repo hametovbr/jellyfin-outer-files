@@ -215,6 +215,16 @@ public static class RenamePlanner
         }
 
         moves.RemoveAll(m => string.Equals(m.From, m.To, StringComparison.Ordinal));
+
+        // The target folder already has this metadata file (Jellyfin wrote a tvshow.nfo there after an earlier
+        // run): the newer one in the target stays, the release's own copy goes to the trash.
+        for (var i = 0; i < moves.Count; i++)
+        {
+            if (moves[i].What == "meta" && context.ExistingFiles.Contains(moves[i].To) && !moves.Any(m => m.From == moves[i].To))
+            {
+                moves[i] = new PlannedMove(moves[i].From, Trash(context, moves[i].From), "trash");
+            }
+        }
         var movedFrom = moves.Select(m => m.From).ToHashSet(StringComparer.Ordinal);
         var allFiles = AllFiles(inv).ToList();
         var leftInPlace = allFiles.Where(f => !movedFrom.Contains(f)).ToList();

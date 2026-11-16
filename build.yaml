@@ -1,7 +1,7 @@
 name: "Outer Files"
 guid: "3dcc5bff-46c4-4ed9-aa71-67b520faee96"
 image: "thumb.png"
-version: "0.4.5.0"
+version: "0.4.6.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Link tracks from sub folders, fix episode numbers of release names, organize releases"
@@ -20,5 +20,5 @@ artifacts:
   - "Jellyfin.Plugin.OuterFiles.dll"
   - "Jellyfin.Plugin.OuterFiles.Domain.dll"
 changelog: >
-  0.4.5: a plan against a source that numbers the episodes differently from the release is a conflict;
-  a double file makes single copies of its episodes duplicates.
+  0.4.6: title matching handles double files ("A + B" as two adjacent episodes) and no longer trusts a
+  file's own number when the release is numbered differently from the source.

@@ -231,4 +231,21 @@ public sealed class OrganizeTests
         var forced = rows.Select(r => r.Video == files[2] ? r with { Action = RowAction.Episode } : r).ToList();
         Assert.Equal(RenamePlanner.DuplicateEpisode, Assert.Single(RenamePlanner.Build(ctx, forced).Conflicts).Code);
     }
+
+    [Fact]
+    public void SeriesMetadataAlreadyInTheTargetFolderWins()
+    {
+        const string root = "/lib/Paw Patrol";
+        string[] files = [root + "/Season 1/Paw Patrol - S01E01.mkv", root + "/tvshow.nfo"];
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "PAW Patrol", 2013), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.Append("/lib/PAW Patrol (2013)/tvshow.nfo").ToHashSet(StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Season 1", "/lib/PAW Patrol (2013)" });
+
+        var plan = RenamePlanner.Build(ctx, EpisodeMapper.Propose(inv, null, new Dictionary<string, int>()));
+
+        Assert.Empty(plan.Conflicts);
+        Assert.Equal("trash", plan.Moves.Single(m => m.From.EndsWith("tvshow.nfo", StringComparison.Ordinal)).What);
+    }
 }
