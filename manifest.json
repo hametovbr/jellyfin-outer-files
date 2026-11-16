@@ -10,6 +10,14 @@
     "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png",
     "versions": [
       {
+        "version": "0.4.5.0",
+        "changelog": "0.4.5: a plan against a source that numbers the episodes differently from the release is a conflict; a double file makes single copies of its episodes duplicates.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.5/outer-files_0.4.5.0.zip",
+        "checksum": "a28f6696ed9603044b0d65adcbf9e2e6",
+        "timestamp": "2026-11-16T15:39:22Z"
+      },
+      {
         "version": "0.4.4.0",
         "changelog": "0.4.4: the organize list shows folders that an earlier organize run left skipped copies in.\n",
         "targetAbi": "12.4.0.0",
