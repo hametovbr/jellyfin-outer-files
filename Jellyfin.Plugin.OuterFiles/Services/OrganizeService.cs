@@ -102,11 +102,19 @@ public sealed class OrganizeService
                 }
             }
 
-            var files = _reader.Snapshot(release.Root);
-            var outer = StemMatcher.Match(files).Matches.Count;
+            var inventory = Inventory.Build(release.Root, _reader.Snapshot(release.Root));
+            var outer = inventory.Videos.Sum(v => v.OuterTracks.Count);
             if (outer > 0)
             {
                 problems.Add($"{outer} tracks in sub folders");
+            }
+
+            var toolNamed = inventory.Videos.Sum(v => v.Sidecars.Count(sc =>
+                MediaKinds.Of(sc.Path) is FileKind.Subtitle or FileKind.Audio
+                && TrackDescriber.HasToolSuffix(Path.GetFileNameWithoutExtension(sc.Path)[Math.Min(v.Stem.Length, Path.GetFileNameWithoutExtension(sc.Path).Length)..])));
+            if (toolNamed > 0)
+            {
+                problems.Add($"{toolNamed} tracks with tool-generated names");
             }
 
             if (problems.Count > 0)
@@ -240,7 +248,10 @@ public sealed class OrganizeService
 
         var qualities = inventory.Videos.ToDictionary(v => v.Path, v => QualityParser.Of(v.Stem, session.Heights.TryGetValue(v.Path, out var h) ? h : null), StringComparer.Ordinal);
         var tracks = new Dictionary<string, TrackDescriptor>(StringComparer.Ordinal);
-        foreach (var t in inventory.Videos.SelectMany(v => v.OuterTracks))
+        var adjacent = inventory.Videos.SelectMany(v => v.Sidecars
+            .Where(sc => MediaKinds.Of(sc.Path) is FileKind.Subtitle or FileKind.Audio)
+            .Select(sc => new TrackMatch(v.Path, sc.Path, MediaKinds.Of(sc.Path), Path.GetFileNameWithoutExtension(sc.Path)[Math.Min(v.Stem.Length, Path.GetFileNameWithoutExtension(sc.Path).Length)..], [])));
+        foreach (var t in inventory.Videos.SelectMany(v => v.OuterTracks).Concat(adjacent))
         {
             var d = TrackDescriber.Describe(t);
             if (d.Language is null && t.Kind == FileKind.Subtitle && MediaKinds.TextSubtitle.Contains(Path.GetExtension(t.Track)))
