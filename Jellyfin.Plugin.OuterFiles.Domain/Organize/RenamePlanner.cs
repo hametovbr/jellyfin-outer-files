@@ -178,7 +178,10 @@ public static class RenamePlanner
         foreach (var meta in inv.FolderMeta)
         {
             var atRoot = string.Equals(Path.GetDirectoryName(meta), root, StringComparison.Ordinal);
-            if (atRoot && context.Identity.Reidentified)
+
+            // The episode source choice belongs to the release, not to the old match: it moves even when re-identified.
+            var choice = atRoot && Path.GetFileName(meta) == EpisodeSources.FileName;
+            if (atRoot && context.Identity.Reidentified && !choice)
             {
                 moves.Add(new PlannedMove(meta, Trash(context, meta), "trash"));
             }

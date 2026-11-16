@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0.0
+
+- **Episode source per release.** Jellyfin keeps only the ids a series was identified with, not the provider the
+  user picked, and asking every provider per episode mixed numberings of different sources in one list (TMDb for the
+  seasons it knows, OMDb placeholders after them). The plugin now pins the episode list to **one provider per
+  release**: TMDb by default when the series has a TMDb id, otherwise the choice is stored in the release folder in a
+  hidden `.outer-files.json` (picked on the organize page; it moves with the folder when organized). OMDb placeholder
+  titles (`Episode #4.1`) count as a missing episode, so a season walk no longer runs past the last real season. The
+  export records the provider each release's list came from and whether it was chosen or defaulted.
+
 ## 0.5.0.0
 
 - **Export** (scheduled task *Export releases and episode lists*, `POST /OuterFiles/Export` to queue it,

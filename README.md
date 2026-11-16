@@ -72,7 +72,9 @@ Dashboard → **Outer Files: Organize**:
    videos outside season folders or tracks in sub folders.
 2. **Organize** opens the analysis: one row per video with the proposed action (episode, special, extra,
    movie, skip), season, episode and the reason. Search the metadata providers to pick the right series;
-   episode titles are fetched with its ids. Absolute numbering (`136. Title`) can be converted with the
+   episode titles are fetched with its ids. The **episode source** is one provider per release (TMDb by default);
+   pick another on the page and it is saved in a hidden `.outer-files.json` in the release folder, so the
+   episode list does not mix the numberings of different sources. Absolute numbering (`136. Title`) can be converted with the
    season sizes from the metadata source. **Match by episode titles** numbers the files by the titles in their names instead
    (`JN.02a.Обычный мальчик` → S01E02 "Normal Boy"), specials included, for releases that count episodes
    their own way. Duplicate releases of the same episode are proposed as *skip*; the copy with more dubs and
@@ -123,6 +125,7 @@ All endpoints require an administrator.
 | `POST /OuterFiles/Organize/Analyze` `{Root}` | analysis and proposals |
 | `GET /OuterFiles/Organize/Search?name=&isMovie=&year=` | metadata search |
 | `POST /OuterFiles/Organize/Absolute` `{SessionId, ProviderIds}` | re-propose absolute numbers by season sizes |
+| `POST /OuterFiles/Organize/Source` `{Root, Provider}` | store/clear the episode source choice for a release |
 | `POST /OuterFiles/Organize/Plan` | build and validate the plan |
 | `POST /OuterFiles/Organize/Apply` `{SessionId, Hash}` | apply the reviewed plan |
 | `POST /OuterFiles/Organize/Undo/{journalId}` | undo |

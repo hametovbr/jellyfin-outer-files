@@ -71,6 +71,17 @@ public class OrganizeController : ControllerBase
         return analysis is null ? NotFound() : Ok(analysis);
     }
 
+    /// <summary>Stores the episode source of a release, or removes it for the default.</summary>
+    /// <param name="body">Release folder and provider.</param>
+    /// <returns>Error, or 204 when saved.</returns>
+    [HttpPost("Source")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public IActionResult Source([FromBody, Required] SourceBody body)
+    {
+        var error = _organize.SaveSource(body.Root, body.Provider);
+        return error is null ? NoContent() : BadRequest(error);
+    }
+
     /// <summary>Searches metadata providers.</summary>
     /// <param name="name">Name.</param>
     /// <param name="isMovie">Movie or series.</param>
@@ -122,3 +133,8 @@ public sealed record AbsoluteBody(string SessionId, IReadOnlyDictionary<string, 
 /// <param name="SessionId">Session.</param>
 /// <param name="Hash">Plan hash.</param>
 public sealed record ApplyBody(string SessionId, string Hash);
+
+/// <summary>Body of Source.</summary>
+/// <param name="Root">Release folder.</param>
+/// <param name="Provider">Provider name, or null/empty for the default (delete the stored choice).</param>
+public sealed record SourceBody(string Root, string? Provider);

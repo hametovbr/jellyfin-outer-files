@@ -218,6 +218,21 @@ UI: pick a folder flagged by the analyzer (or any folder)
 An organized folder needs neither links nor naming rules: the host recognises everything by itself.
 Link mode simply finds nothing to do there.
 
+### 7.4 Episode source per release
+Jellyfin stores only the ids a series was identified with, never the provider the user picked, so a lookup without
+a named provider asks every enabled provider and the first answer wins. That mixed the numberings of different
+sources in one list (TMDb for the seasons it knows, OMDb placeholders past them) and let a season walk run past the
+last real season. The plugin therefore resolves **one provider per release**:
+
+- TMDb by default when the series has a TMDb id; otherwise any provider.
+- The choice is stored in a hidden `.outer-files.json` in the release folder (Jellyfin ignores dot folders/files),
+  written by the organize page (`POST /OuterFiles/Organize/Source`) and moved with the folder when it is organized.
+  Only a file the plugin itself wrote is replaced or removed; "default" removes it.
+- The metadata gateway passes the provider as `SearchProviderName` (`IncludeDisabledProviders` so a picked provider
+  answers even when not enabled for the library), and treats OMDb placeholders (`Episode #4.1`) as a missing episode.
+
+`EpisodeSources` (domain) owns the choice format and resolution; `EpisodeSourceStore` (adapter) reads/writes the file.
+
 ## 8. Configuration (scalars only)
 Library roots to manage (default: all TV and movie libraries), link mode on/off, naming adapter on/off,
 default audio language, templates (strings), report size. No lists of custom types (XML serializer).
@@ -231,6 +246,7 @@ GET  /OuterFiles/Organize/Candidates         folders with problems
 POST /OuterFiles/Organize/Sessions           { path } → analysis
 POST /OuterFiles/Organize/Sessions/{id}/Identify|Map|Plan
 POST /OuterFiles/Organize/Sessions/{id}/Apply  { planHash } (must match the reviewed plan)
+POST /OuterFiles/Organize/Source            { root, provider } → store/clear the episode source choice
 GET  /OuterFiles/Journal                     applied operations
 POST /OuterFiles/Journal/{id}/Undo
 ```

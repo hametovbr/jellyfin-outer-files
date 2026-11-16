@@ -41,7 +41,9 @@
                         <div class="inputContainer" style="flex:1;min-width:6em"><label class="inputLabel" for="OfYear">Year</label><input id="OfYear" type="number" is="emby-input" /></div>
                         <div class="inputContainer" style="flex:3;min-width:16em"><label class="inputLabel" for="OfIds">Provider ids</label><input id="OfIds" type="text" is="emby-input" /></div>
                     </div>
-                    <div class="fieldDescription">Ids like <code>Tmdb=12345, Tvdb=67890</code>; episode titles are fetched with them. Search to pick the right series. <em>Match by episode titles</em> numbers the files by the titles in their names (for releases that count episodes their own way); names without a title keep the proposal.</div>
+                    <div class="inputContainer" style="flex:2;min-width:14em"><label class="inputLabel" for="OfSource">Episode source</label><select id="OfSource" is="emby-select"></select></div>
+                    <button is="emby-button" type="button" class="raised emby-button" id="OfSourceSave"><span>Save source</span></button>
+                    <div class="fieldDescription">Which provider the episode list is taken from. Saved in a hidden <code>.outer-files.json</code> in the release folder (moves with it when organized); delete it or pick “Default (TMDb)” to use the default. Ids like <code>Tmdb=12345, Tvdb=67890</code>; episode titles are fetched with them. Search to pick the right series. <em>Match by episode titles</em> numbers the files by the titles in their names (for releases that count episodes their own way); names without a title keep the proposal.</div>
                     <div style="margin:0.5em 0">
                         <button is="emby-button" type="button" class="raised emby-button" id="OfSearch"><span>Search metadata</span></button>
                         <button is="emby-button" type="button" class="raised emby-button" id="OfAbsolute"><span>Convert absolute numbers</span></button>
@@ -128,6 +130,13 @@
                     $('#OfAbsolute').style.display = a.IsMovie ? 'none' : '';
                     $('#OfTitles').style.display = a.IsMovie ? 'none' : '';
                     $('#OfHits').innerHTML = '';
+                    var providers = a.Providers || ['TheMovieDb', 'TVmaze'];
+                    var chosen = a.Source && a.Source.Provider ? a.Source.Provider : '';
+                    var opts = ['<option value="">Default (TMDb)</option>'];
+                    providers.forEach(function (p) { opts.push('<option value="' + esc(p) + '"' + (p === chosen ? ' selected' : '') + '>' + esc(p) + '</option>'); });
+                    $('#OfSource').innerHTML = opts.join('');
+                    $('#OfSource').style.display = a.IsMovie ? 'none' : '';
+                    $('#OfSourceSave').style.display = a.IsMovie ? 'none' : '';
                     var html = '<table><tr><th>File</th><th>Now</th><th>Action</th><th>S</th><th>E</th><th>to E</th><th>Part</th><th>Why</th></tr>';
                     a.Rows.forEach(function (r, i) {
                         var act = actionName(r.Action);
@@ -162,6 +171,13 @@
                         };
                     });
                 }
+
+                $('#OfSourceSave').addEventListener('click', function () {
+                    var a = state.analysis; if (!a) { return; }
+                    busy(call('POST', 'Organize/Source', { Root: a.Root, Provider: $('#OfSource').value || null })).then(function () {
+                        Dashboard.alert('Episode source saved for this release.');
+                    });
+                });
 
                 $('#OfSearch').addEventListener('click', function () {
                     var a = state.analysis; if (!a) { return; }

@@ -53,6 +53,7 @@ public sealed class OrganizeServiceTests
             library,
             new FakeMetadata((s, e) => s == 1 ? $"Title {e}: Part?" : null),
             new FileSystemReader(),
+            new EpisodeSourceStore(),
             new PlanExecutor(journals, NullLogger<PlanExecutor>.Instance),
             new OperationGate(),
             naming,
@@ -109,6 +110,7 @@ public sealed class OrganizeServiceTests
         var release = new ReleaseRef(root, tree.P("tv"), false, "Show", 2020, new Dictionary<string, string>(), [new(Guid.NewGuid(), a, null, 1, 1080), new(Guid.NewGuid(), b, null, 1, 720)]);
         var naming = new NamingOptions();
         var service = new OrganizeService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata((_, _) => null), new FileSystemReader(),
+            new EpisodeSourceStore(),
             new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance), new OperationGate(), naming, NullLogger<OrganizeService>.Instance);
 
         var analysis = service.Analyze(root)!;
@@ -131,6 +133,7 @@ public sealed class OrganizeServiceTests
         var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Jimmy", 2002, new Dictionary<string, string>(), videos);
         var titles = new Dictionary<(int, int), string> { [(1, 1)] = "Когда атакуют штаны", [(1, 2)] = "Обычный мальчик", [(1, 3)] = "Рождение коммерсанта", [(0, 2)] = "Атака твонков", [(0, 9)] = "Совсем другой спецвыпуск" };
         var service = new OrganizeService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata((s, e) => titles.GetValueOrDefault((s, e))), new FileSystemReader(),
+            new EpisodeSourceStore(),
             new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance), new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
 
         var analysis = service.Analyze(tree.P(rel))!;
@@ -155,7 +158,7 @@ public sealed class OrganizeServiceTests
         var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Paw Patrol", null, new Dictionary<string, string>(), [new ReleaseVideo(Guid.NewGuid(), copy, 10, 25, 1080)]);
         var executor = new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance);
         var service = new OrganizeService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata((_, _) => null), new FileSystemReader(),
-            executor, new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
+            new EpisodeSourceStore(), executor, new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
         var config = new PluginConfiguration { SeriesFolderTemplate = "{Series Title}" };
         Assert.Empty(service.Candidates(config));
 
@@ -176,6 +179,7 @@ public sealed class OrganizeServiceTests
         var videos = own.Select((t, i) => new ReleaseVideo(Guid.NewGuid(), tree.File($"{rel}/Season 1/Paw Patrol - S01E{i + 1:00} - {t} WEBDL-1080p.mp4"), 1, i + 1, 1080)).ToList();
         var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Paw Patrol", 2013, new Dictionary<string, string>(), videos);
         OrganizeService Service(Func<int, int, string?> titles) => new(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata(titles), new FileSystemReader(),
+            new EpisodeSourceStore(),
             new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance), new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
 
         async Task<PlanView> PlanWith(Func<int, int, string?> titles)
@@ -204,7 +208,7 @@ public sealed class OrganizeServiceTests
         tree.File($"{rel}/Season 1/Show - S01E01-E02 - A + B.nfo", "<episodedetails><title>A</title></episodedetails>");
         var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Show", 2020, new Dictionary<string, string> { ["Tmdb"] = "7" }, [new ReleaseVideo(Guid.NewGuid(), video, 1, 1, 1080)]);
         var export = new ExportService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]),
-            new FakeMetadata((s, e) => s == 1 && e is 1 or 2 or 4 ? $"Title {e}" : s == 0 && e == 3 ? "Special" : null), new FileSystemReader(), tree.P("_data/export"), NullLogger<ExportService>.Instance);
+            new FakeMetadata((s, e) => s == 1 && e is 1 or 2 or 4 ? $"Title {e}" : s == 0 && e == 3 ? "Special" : null), new FileSystemReader(), new EpisodeSourceStore(), tree.P("_data/export"), NullLogger<ExportService>.Instance);
 
         await export.RunAsync(new PluginConfiguration(), null, CancellationToken.None);
 
