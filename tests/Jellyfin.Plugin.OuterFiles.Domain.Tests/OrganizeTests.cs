@@ -149,4 +149,21 @@ public sealed class OrganizeTests
     }
 
     private static (RowAction, int?, int?) Key(RowDecision r) => (r.Action, r.Season, r.Episode);
+
+    [Fact]
+    public void EditedRowsThatPutTwoCopiesOnOneEpisodeAreAConflict()
+    {
+        const string root = "/lib/Show";
+        string[] files = [root + "/Show - 01 [1080p].mkv", root + "/Other/Show - 01 [720p].mkv", root + "/Other/Rus/Show - 01 [720p].ass"];
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "Show", 2020), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Other", root + "/Other/Rus" });
+        var rows = inv.Videos.Select(v => new RowDecision(v.Path, RowAction.Episode, 1, 1, null, null, "edited")).ToList();
+
+        var conflict = Assert.Single(RenamePlanner.Build(ctx, rows).Conflicts);
+
+        Assert.Equal(RenamePlanner.DuplicateEpisode, conflict.Code);
+        Assert.StartsWith("S01E01 is planned for 2 files: Other/Show - 01 [720p].mkv (1 tracks)", conflict.Message, StringComparison.Ordinal);
+    }
 }

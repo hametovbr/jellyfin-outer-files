@@ -77,10 +77,39 @@ public static class EpisodeMapper
             .SelectMany(g => g)
             .Select(m => m.Video)
             .ToHashSet(StringComparer.Ordinal);
+        // A file without a title that carries the same number as a titled copy (Henshin "sp_01" and Sonarr's
+        // "S00E01 - URA-ON! …", Henshin "_13_" and "S01E13 - Winter Days!") is the same episode: it follows
+        // the titled copy, and the duplicate is resolved below.
+        var original = inventory.Videos.ToDictionary(v => v.Path, v => ProposeOne(v, null), StringComparer.Ordinal);
+        var renumbered = matches
+            .Where(m => m.Match is not null && original[m.Video].Action is RowAction.Episode or RowAction.Special)
+            .GroupBy(m => (original[m.Video].Season, original[m.Video].Episode))
+            .Where(g => g.Select(m => (m.Match!.Season, m.Match.Episode)).Distinct().Count() == 1)
+            .ToDictionary(g => g.Key, g => g.First());
         var rows = inventory.Videos.Select(v =>
         {
-            var row = ProposeOne(v, null);
-            if (!byVideo.TryGetValue(v.Path, out var m) || row.Action == RowAction.Extra)
+            var row = original[v.Path];
+            if (!byVideo.TryGetValue(v.Path, out var m))
+            {
+                if (row.Action is RowAction.Episode or RowAction.Special
+                    && renumbered.TryGetValue((row.Season, row.Episode), out var twin)
+                    && (twin.Match!.Season, twin.Match.Episode) != (row.Season, row.Episode))
+                {
+                    var t = twin.Match;
+                    return row with
+                    {
+                        Action = t.Season == 0 ? RowAction.Special : RowAction.Episode,
+                        Season = t.Season,
+                        Episode = t.Episode,
+                        EpisodeEnd = null,
+                        Reason = $"same number as {inventory.Videos.First(x => x.Path == twin.Video).Relative}, which is \"{t.Title}\"",
+                    };
+                }
+
+                return row;
+            }
+
+            if (row.Action == RowAction.Extra)
             {
                 return row;
             }
