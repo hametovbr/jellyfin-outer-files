@@ -8,12 +8,12 @@
     "category": "Library",
     "versions": [
       {
-        "version": "0.3.0.0",
-        "changelog": "0.3.0: optional collection of release fonts as Jellyfin fallback fonts; episode re-numbering aware of local nfo files, clears numbers the rules cannot replace; organize normalizes names of adjacent tracks, keeps one copy of duplicate fonts, guesses readable titles; undo keeps folders Jellyfin saved metadata into and can be retried.\n",
+        "version": "0.3.1.0",
+        "changelog": "0.3.1: organize keeps the duplicate copy that has dubs and subtitles; series metadata of a wrong Jellyfin match no longer follows the release; status lists episodes whose number contradicts SxxEyy in the file name.\n",
         "targetAbi": "12.4.0.0",
-        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.3.0/outer-files_0.3.0.0.zip",
-        "checksum": "49ce2fa84cb9922cfa7e1f9be277123b",
-        "timestamp": "2026-11-16T06:52:29Z"
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.3.1/outer-files_0.3.1.0.zip",
+        "checksum": "20994689dbd04a0487d34fd5bdc04fd9",
+        "timestamp": "2026-11-16T09:39:11Z"
       }
     ],
     "image": "thumb.png",
