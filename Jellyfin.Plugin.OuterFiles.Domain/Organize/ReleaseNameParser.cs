@@ -121,6 +121,34 @@ public static partial class ReleaseNameParser
     }
 
     /// <summary>
+    /// Guesses a readable title from a raw release name (<c>Some.Movie.2010.1080p.BluRay.x264-GRP</c> → <c>Some Movie</c>),
+    /// used as the starting point when Jellyfin has no metadata match and kept the folder name as the title.
+    /// </summary>
+    /// <param name="name">Folder or file name.</param>
+    /// <returns>The guess, or the name unchanged when nothing is left.</returns>
+    public static string GuessTitle(string name)
+    {
+        var text = BracketGroup().Replace(name, " ");
+        if (!text.Contains(' ', StringComparison.Ordinal))
+        {
+            text = text.Replace('.', ' ').Replace('_', ' ');
+        }
+
+        // Cut at the release year (the last one before quality tags: "Blade Runner 2049 2017 1080p"), else at the tags.
+        var quality = QualityTag().Match(text);
+        var end = quality.Success ? quality.Index : text.Length;
+        var year = YearTag().Matches(text).Where(m => m.Index > 0 && m.Index < end).LastOrDefault();
+        var cut = year?.Index ?? (quality.Success ? quality.Index : 0);
+        if (cut > 0)
+        {
+            text = text[..cut];
+        }
+
+        text = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim(' ', '-');
+        return text.Length > 0 ? text : name;
+    }
+
+    /// <summary>
     /// Reads a season number from a folder name: <c>Season 2</c>, <c>Сезон 3 (BDRip)</c>, <c>S01</c>,
     /// <c>Jujutsu.Kaisen.Season3</c>, <c>[TV-2]</c>, <c>Jujutsu Kaisen II</c>, <c>Specials</c>.
     /// </summary>
@@ -200,4 +228,13 @@ public static partial class ReleaseNameParser
 
     [GeneratedRegex(@"\s(?<r>II|III|IV|V|VI)(?:$|\s)")]
     private static partial Regex RomanRegex();
+
+    [GeneratedRegex(@"\[[^\]]*\]")]
+    private static partial Regex BracketGroup();
+
+    [GeneratedRegex(@"[\s(]+(?:19|20)\d{2}\b")]
+    private static partial Regex YearTag();
+
+    [GeneratedRegex(@"[\s(]+(?:\d{3,4}p\b|S\d{1,2}E\d|BluRay|BDRip|BRRip|WEB-?DL|WEB-?Rip|HDTV|DVDRip|REMUX|x26[45]|HEVC)", RegexOptions.IgnoreCase)]
+    private static partial Regex QualityTag();
 }

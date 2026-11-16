@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0.0
+
+- **Fonts** (setting, off by default): fonts shipped in release `fonts/` folders (.ttf, .otf, .woff, .woff2)
+  are linked into one plugin folder registered as Jellyfin's fallback font folder, so styled `.ass`
+  subtitles render with their fonts in the web player. Used only when that Jellyfin setting is empty or
+  already points to the plugin; Jellyfin loads at most 20 MiB, larger sets are reported.
+- **Episode re-numbering**: episodes with numbers the rules cannot replace (`NCOP1`, `JN.16`) are cleared
+  instead of keeping a wrong number; episodes that already carry the right number are left alone. A local
+  `.nfo` with the old number is detected: the library is fixed, and the status lists those nfo files, which
+  bring the old number back when the video changes unless the library saves metadata into media folders
+  (then Jellyfin rewrites them).
+- **Organize**: adjacent subtitles and audio get the same normalized names as tracks from sub folders;
+  releases whose tracks carry tool-generated names are listed; a release that ships the same fonts per
+  subtitle group keeps one copy (the rest goes to the trash folder); a readable title is proposed when
+  Jellyfin only knows the raw release name.
+- **Undo**: folders Jellyfin wrote its own metadata into after organizing (nfo, thumbnails) are kept and
+  reported instead of stopping the undo; an interrupted run can be retried, finished moves are skipped.
+- Settings page shows the font state; the organize table is easier to read.
+
 ## 0.2.0.0
 
 Ground-up rewrite (design: docs/ARCHITECTURE.md). Requires Jellyfin 12.4.

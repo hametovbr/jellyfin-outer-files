@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.OuterFiles.Configuration;
+using Jellyfin.Plugin.OuterFiles.Domain.Fonts;
 using Jellyfin.Plugin.OuterFiles.Domain.Links;
 using Jellyfin.Plugin.OuterFiles.Domain.Matching;
 using Jellyfin.Plugin.OuterFiles.Domain.Model;
@@ -28,6 +29,7 @@ public sealed class LinkReconciler
     private readonly IRefresher _refresh;
     private readonly OperationGate _gate;
     private readonly ReportStore _reports;
+    private readonly FallbackFonts _fonts;
     private readonly ILogger<LinkReconciler> _logger;
 
     /// <summary>
@@ -39,9 +41,11 @@ public sealed class LinkReconciler
     /// <param name="refresh">Refresh gateway.</param>
     /// <param name="gate">Operation gate.</param>
     /// <param name="reports">Report store.</param>
+    /// <param name="fonts">Fallback font folder.</param>
     /// <param name="logger">Logger.</param>
-    public LinkReconciler(ILibrarySource library, FileSystemReader reader, PlanExecutor executor, IRefresher refresh, OperationGate gate, ReportStore reports, ILogger<LinkReconciler> logger)
+    public LinkReconciler(ILibrarySource library, FileSystemReader reader, PlanExecutor executor, IRefresher refresh, OperationGate gate, ReportStore reports, FallbackFonts fonts, ILogger<LinkReconciler> logger)
     {
+        _fonts = fonts;
         _library = library;
         _reader = reader;
         _executor = executor;
@@ -106,6 +110,7 @@ public sealed class LinkReconciler
         var states = new List<(VideoRef Video, VideoLinkState State)>();
         int matched = 0, hostHandled = 0;
         var unmatched = new List<string>();
+        var fontFiles = new List<string>();
 
         var groups = videos.GroupBy(v => v.ReleaseRoot, StringComparer.Ordinal).ToList();
         var done = 0;
@@ -115,6 +120,7 @@ public sealed class LinkReconciler
             try
             {
                 var files = _reader.Snapshot(group.Key);
+                fontFiles.AddRange(files.Where(f => FontCollector.Extensions.Contains(Path.GetExtension(f))));
                 var match = StemMatcher.Match(files);
                 matched += match.Matches.Count;
                 hostHandled += match.HostHandled.Count;
@@ -138,7 +144,11 @@ public sealed class LinkReconciler
         }
 
         var (plan, changed) = LinkPlanner.Plan(states.Select(s => s.State));
-        var result = _executor.Apply(plan, "links", [_library.InternalMetadataRoot], ct);
+        var fontState = FontState(config.CollectFonts ? FontCollector.Desire(fontFiles) : [], roots);
+        var fontPlan = LinkPlanner.Plan([fontState]).Plan;
+        plan = new Plan(plan.Title, plan.Operations.Concat(fontPlan.Operations).ToList());
+        var result = _executor.Apply(plan, "links", [_library.InternalMetadataRoot, Path.GetDirectoryName(_fonts.Folder)!], ct);
+        var fonts = result.Succeeded ? _fonts.Apply(config.CollectFonts, fontState.Desired) : null;
         if (result.Error is not null)
         {
             errors.Add(result.Error);
@@ -169,8 +179,14 @@ public sealed class LinkReconciler
             refreshed,
             unmatched.Count);
 
-        return new LinkReport(started, DateTime.UtcNow, videos.Count, matched, hostHandled, unmatched.Count, created, removed, refreshed, result.JournalId, unmatched.Take(200).ToList(), errors);
+        return new LinkReport(started, DateTime.UtcNow, videos.Count, matched, hostHandled, unmatched.Count, created, removed, refreshed, result.JournalId, unmatched.Take(200).ToList(), errors, fonts);
     }
+
+    private VideoLinkState FontState(IReadOnlyList<DesiredLink> desired, IReadOnlyCollection<string> roots) => new(
+        _fonts.Folder,
+        desired.Count > 0 ? _reader.MissingFolders(_fonts.Folder, Path.GetDirectoryName(Path.GetDirectoryName(_fonts.Folder))!) : [],
+        desired,
+        _reader.OwnedLinks(_fonts.Folder, roots));
 
     private VideoLinkState BuildState(VideoRef video, IEnumerable<TrackMatch> matches, IReadOnlyCollection<string> roots, PluginConfiguration config)
     {
@@ -213,7 +229,8 @@ public sealed class LinkReconciler
 /// <param name="JournalId">Journal of the run, null when nothing changed.</param>
 /// <param name="UnmatchedSample">Up to 200 unmatched tracks.</param>
 /// <param name="Errors">Errors.</param>
-public sealed record LinkReport(DateTime StartedUtc, DateTime FinishedUtc, int Videos, int OuterTracks, int HostHandled, int Unmatched, int Created, int Removed, int Refreshed, string? JournalId, IReadOnlyList<string> UnmatchedSample, IReadOnlyList<string> Errors);
+/// <param name="Fonts">Fallback font state, null when the run failed.</param>
+public sealed record LinkReport(DateTime StartedUtc, DateTime FinishedUtc, int Videos, int OuterTracks, int HostHandled, int Unmatched, int Created, int Removed, int Refreshed, string? JournalId, IReadOnlyList<string> UnmatchedSample, IReadOnlyList<string> Errors, FontReport? Fonts = null);
 
 /// <summary>
 /// Link mode preview for one video.

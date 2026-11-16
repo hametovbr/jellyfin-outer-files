@@ -181,6 +181,19 @@ public static partial class TrackDescriber
         return (language, studio.Count == 0 ? null : string.Join(' ', studio), forced, hi);
     }
 
+    /// <summary>
+    /// Tells whether a track name suffix was produced by an extraction tool (<c>.rus.19</c>, <c>.subrip.3</c>,
+    /// <c>.hdmv_pgs_subtitle.22</c>): Jellyfin shows such leftovers as track titles ("19").
+    /// </summary>
+    /// <param name="suffix">Suffix after the video stem, without extension.</param>
+    /// <returns>True when it contains a stream index or codec name.</returns>
+    public static bool HasToolSuffix(string suffix)
+    {
+        ArgumentNullException.ThrowIfNull(suffix);
+        return suffix.Split(['.', '_'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(t => t.All(char.IsAsciiDigit) || IsCodecName(t));
+    }
+
     private static bool IsInformationless(string word)
         => FolderVocabulary.TypeWords.Contains(word)
             || FolderVocabulary.NoiseWords.Contains(word)

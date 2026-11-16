@@ -63,6 +63,32 @@ public sealed class LinkReconcilerTests
     }
 
     [Fact]
+    public async Task CollectsReleaseFontsOnlyWhenEnabled()
+    {
+        using var tree = new TempTree();
+        var video = tree.File($"{Rel}/{Stem}.mkv");
+        tree.File($"{Rel}/EN Subs/{Stem}.en_CR.ass");
+        var font = tree.File($"{Rel}/EN Subs/fonts/Gandhi Sans.otf", "font");
+        tree.File($"{Rel}/RU Subs/Fonts/Gandhi Sans.otf", "duplicate name");
+        tree.File($"{Rel}/RU Subs/Fonts/arial.ttc", "not served by Jellyfin");
+        Directory.CreateDirectory(tree.P("meta"));
+        var library = new FakeLibrary(tree.P("meta"), [tree.P("lib")], [new VideoRef(Guid.NewGuid(), video, tree.P(Rel), tree.P("meta/x/1"), "episode")]);
+        var reconciler = Create(tree, library, new FakeRefresh());
+        var fonts = tree.P("_data/outer-files/fonts");
+
+        var off = await reconciler.RunAsync(new PluginConfiguration(), null, CancellationToken.None);
+        Assert.False(Directory.Exists(fonts));
+        Assert.Equal((false, 0), (off!.Fonts!.Enabled, off.Fonts.Fonts));
+
+        var on = await reconciler.RunAsync(new PluginConfiguration { CollectFonts = true }, null, CancellationToken.None);
+        Assert.Equal(1, on!.Fonts!.Fonts);
+        Assert.Equal(font, new FileInfo(Path.Combine(fonts, "Gandhi Sans.otf")).LinkTarget);
+
+        await reconciler.RunAsync(new PluginConfiguration(), null, CancellationToken.None);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(fonts));
+    }
+
+    [Fact]
     public void PreviewExplainsWithoutChangingAnything()
     {
         using var tree = new TempTree();
@@ -91,11 +117,14 @@ public sealed class LinkReconcilerTests
             refresh,
             new OperationGate(),
             new ReportStore(tree.P("_data/reports")),
+            new TestFonts(tree.P("_data/outer-files/fonts")),
             NullLogger<LinkReconciler>.Instance);
     }
 
     private static string RussianAss() =>
         "[Events]\n" + string.Concat(Enumerable.Repeat("Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Я не могу поверить, что это происходит на самом деле.\n", 8));
+
+    private sealed class TestFonts(string folder) : FallbackFonts(folder, null);
 
     private sealed class FakeRefresh : IRefresher
     {

@@ -1,5 +1,7 @@
 using System.Globalization;
 using Jellyfin.Plugin.OuterFiles.Domain.Links;
+using Jellyfin.Plugin.OuterFiles.Domain.Matching;
+using Jellyfin.Plugin.OuterFiles.Domain.Model;
 using Jellyfin.Plugin.OuterFiles.Domain.Plans;
 using Jellyfin.Plugin.OuterFiles.Domain.Tracks;
 
@@ -33,7 +35,7 @@ public sealed record Identity(bool IsMovie, string Title, int? Year);
 /// <param name="Templates">Templates.</param>
 /// <param name="EpisodeTitles">Episode title per video path (missing → no title in the name).</param>
 /// <param name="Qualities">Quality label per video path.</param>
-/// <param name="Tracks">Resolved descriptor per outer track path.</param>
+/// <param name="Tracks">Resolved descriptor per track path (outer tracks and adjacent track sidecars).</param>
 /// <param name="ExistingFiles">Files that exist now in the release and in the target folder.</param>
 /// <param name="ExistingDirs">Folders that exist now (release, target, library folder).</param>
 public sealed record RenameContext(
@@ -120,6 +122,26 @@ public static class RenamePlanner
                     continue;
                 }
 
+                var kind = MediaKinds.Of(sc.Path);
+                if (kind is FileKind.Subtitle or FileKind.Audio)
+                {
+                    // Tracks get the same normalized names as tracks from sub folders:
+                    // ".rus.19.srt" → ".rus.srt", ".en.hi.srt" → ".sdh.eng.srt", ".subrip.3.srt" → ".<guessed>.srt".
+                    var trackStem = Path.GetFileNameWithoutExtension(sc.Path);
+                    var descriptor = context.Tracks.TryGetValue(sc.Path, out var sd)
+                        ? sd
+                        : TrackDescriber.Describe(new TrackMatch(video.Path, sc.Path, kind, trackStem[Math.Min(video.Stem.Length, trackStem.Length)..], []));
+                    var scExt = Path.GetExtension(sc.Path);
+                    var name = LinkPlanner.LinkName(newStem, descriptor, scExt);
+                    for (var n = 2; !taken.Add(Path.Combine(dir, name)); n++)
+                    {
+                        name = LinkPlanner.LinkName(newStem, descriptor, scExt, (string.IsNullOrEmpty(descriptor.Studio) ? "#" : " ") + n.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    moves.Add(new PlannedMove(sc.Path, Path.Combine(dir, name), "sidecar"));
+                    continue;
+                }
+
                 var to = Path.Combine(dir, newStem + sc.Suffix);
                 if (taken.Add(to))
                 {
@@ -161,11 +183,13 @@ public static class RenamePlanner
 
         foreach (var font in inv.Fonts)
         {
+            // Releases ship the same fonts once per subtitle group (EN Subs/fonts, RU Subs/Fonts): one copy per
+            // file name is kept, the others go to the trash folder like stale nfo files.
             var to = Path.Combine(targetRoot, "fonts", Path.GetFileName(font));
             if (!taken.Add(to))
             {
-                to = Path.Combine(targetRoot, "fonts", Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(font)!)!) ?? "other", Path.GetFileName(font));
-                taken.Add(to);
+                moves.Add(new PlannedMove(font, Trash(context, font), "trash"));
+                continue;
             }
 
             if (!string.Equals(font, to, StringComparison.Ordinal))

@@ -9,7 +9,8 @@
         <style>
             #OuterFilesOrganizePage table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
             #OuterFilesOrganizePage th, #OuterFilesOrganizePage td { text-align: left; padding: 0.3em 0.5em; border-bottom: 1px solid rgba(128,128,128,0.25); vertical-align: top; }
-            #OuterFilesOrganizePage input.of-n { width: 4em; }
+            #OuterFilesOrganizePage input.of-n { width: 4em; box-sizing: border-box; padding: 0.35em 0.4em; font: inherit; color: inherit; background: rgba(128,128,128,0.15); border: 1px solid rgba(128,128,128,0.4); border-radius: 3px; }
+            #OuterFilesOrganizePage select.of-act { min-width: 7.5em; }
             #OuterFilesOrganizePage .of-bad { color: #e57373; }
             #OuterFilesOrganizePage .of-dim { opacity: 0.65; }
             #OuterFilesOrganizePage .of-section { margin-top: 2em; }
@@ -128,7 +129,7 @@
                     a.Rows.forEach(function (r, i) {
                         var act = actionName(r.Action);
                         html += '<tr data-i="' + i + '"><td><code>' + esc(r.Relative) + '</code><div class="of-dim">' + r.Sidecars + ' next to it, ' + r.OuterTracks + ' in sub folders</div></td>' +
-                            '<td class="of-dim">' + (r.StoredEpisode !== null && r.StoredEpisode !== undefined ? 'S' + esc(r.StoredSeason) + 'E' + esc(r.StoredEpisode) : '—') + '</td>' +
+                            '<td class="of-dim">' + (r.StoredEpisode !== null && r.StoredEpisode !== undefined ? (r.StoredSeason !== null && r.StoredSeason !== undefined ? 'S' + esc(r.StoredSeason) : '') + 'E' + esc(r.StoredEpisode) : '—') + '</td>' +
                             '<td><select is="emby-select" class="of-act">' + actions.map(function (x) { return '<option' + (x === act ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></td>' +
                             '<td><input class="of-n of-s" type="number" min="0" value="' + esc(r.Season) + '"/></td>' +
                             '<td><input class="of-n of-e" type="number" min="0" value="' + esc(r.Episode) + '"/></td>' +
@@ -211,12 +212,16 @@
                     if (!window.confirm('Apply ' + p.Moves.length + ' moves? You can undo from the journal.')) { return; }
                     busy(call('POST', 'Organize/Apply', { SessionId: p.SessionId, Hash: p.Hash })).then(function (r) {
                         if (r.Error) { Dashboard.alert('Stopped: ' + r.Error + (r.JournalId ? ' (partial run can be undone from the journal)' : '')); }
-                        else { Dashboard.alert('Done: ' + r.Done + ' steps. A library scan was queued.'); }
+                        else { Dashboard.alert('Done: ' + r.Done + ' steps. A library scan was queued.' + kept(r)); }
                         $('#OfPlanBox').style.display = 'none'; $('#OfAnalysisBox').style.display = 'none';
                         state.analysis = null; state.plan = null;
                         loadJournal();
                     });
                 });
+
+                function kept(r) {
+                    return r.Kept && r.Kept.length ? ' Kept ' + r.Kept.length + ' folder(s) with other files inside (e.g. metadata Jellyfin saved): ' + r.Kept.join(', ') : '';
+                }
 
                 function loadJournal() {
                     call('GET', 'Journal?limit=50').then(function (list) {
@@ -231,7 +236,7 @@
                             b.addEventListener('click', function () {
                                 if (!window.confirm('Undo this run?')) { return; }
                                 busy(call('POST', 'Organize/Undo/' + encodeURIComponent(b.getAttribute('data-undo')))).then(function (r) {
-                                    Dashboard.alert(r.Error ? 'Undo stopped: ' + r.Error : 'Undone: ' + r.Done + ' steps. A library scan was queued.');
+                                    Dashboard.alert(r.Error ? 'Undo stopped: ' + r.Error + ' Undo can be retried.' : 'Undone: ' + r.Done + ' steps. A library scan was queued.' + kept(r));
                                     loadJournal();
                                 });
                             });

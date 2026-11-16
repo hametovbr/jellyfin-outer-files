@@ -91,5 +91,23 @@ public sealed class OrganizeTests
         Assert.Empty(plan.LeftInPlace);
     }
 
+    [Fact]
+    public void KeepsOneCopyOfFontsShippedPerSubtitleGroup()
+    {
+        const string root = "/lib/Show [BD]";
+        string[] files = [root + "/Show - 01.mkv", root + "/EN Subs/fonts/A.ttf", root + "/RU Subs/Fonts/A.ttf", root + "/RU Subs/Fonts/B.otf"];
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "Show", 2020), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/EN Subs", root + "/EN Subs/fonts", root + "/RU Subs", root + "/RU Subs/Fonts" });
+        var plan = RenamePlanner.Build(ctx, EpisodeMapper.Propose(inv, null, new Dictionary<string, int>()));
+
+        Assert.Equal(
+            ["/lib/Show (2020)/fonts/A.ttf", "/lib/Show (2020)/fonts/B.otf"],
+            plan.Moves.Where(m => m.What == "font").Select(m => m.To).Order(StringComparer.Ordinal));
+        Assert.Single(plan.Moves, m => m.What == "trash" && m.From.EndsWith("/A.ttf", StringComparison.Ordinal));
+        Assert.Empty(PlanValidator.Validate(plan.Plan, ["/lib"]));
+    }
+
     private static (RowAction, int?, int?) Key(RowDecision r) => (r.Action, r.Season, r.Episode);
 }

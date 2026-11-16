@@ -49,4 +49,14 @@ public sealed class ReleaseNameParserTests
     [InlineData("[Henshin] K-ON! (BDrip)", null)]
     [InlineData("Brooklyn Nine-Nine Season 4 1080p  Paramount Comedy", 4)]
     public void ReadsSeasonsFromFolders(string folder, int? season) => Assert.Equal(season, ReleaseNameParser.SeasonOfFolder(folder));
+
+    [Theory]
+    [InlineData("Some.Movie.2010.1080p.BluRay.x264-GRP", "Some Movie")]
+    [InlineData("Blade.Runner.2049.2017.2160p.UHD.BluRay.x265", "Blade Runner 2049")]
+    [InlineData("2012.2009.1080p.BluRay", "2012")]
+    [InlineData("[SubsPlease] Frieren (1080p)", "Frieren")]
+    [InlineData("Movie_Title_BDRip_1080p", "Movie Title")]
+    [InlineData("Already Clean Title", "Already Clean Title")]
+    public void GuessesTitlesFromReleaseNames(string name, string expected) =>
+        Assert.Equal(expected, ReleaseNameParser.GuessTitle(name));
 }

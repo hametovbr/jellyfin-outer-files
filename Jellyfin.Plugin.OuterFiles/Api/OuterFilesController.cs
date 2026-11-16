@@ -55,7 +55,8 @@ public class OuterFilesController : ControllerBase
         _gate.Current,
         Plugin.Instance?.Configuration.EnableLinks ?? false,
         _naming.State,
-        _reports.Load<LinkReport>("links")));
+        _reports.Load<LinkReport>("links"),
+        _reports.Load<RenumberReport>("naming")));
 
     /// <summary>
     /// Shows what link mode would do for one video.
@@ -99,4 +100,5 @@ public class OuterFilesController : ControllerBase
 /// <param name="LinksEnabled">Link mode enabled.</param>
 /// <param name="NamingRules">State of the naming rules.</param>
 /// <param name="LastLinkRun">Last link report.</param>
-public sealed record OuterFilesStatus(string? Running, bool LinksEnabled, NamingRulesState NamingRules, LinkReport? LastLinkRun);
+/// <param name="LastRenumbering">Last re-numbering pass.</param>
+public sealed record OuterFilesStatus(string? Running, bool LinksEnabled, NamingRulesState NamingRules, LinkReport? LastLinkRun, RenumberReport? LastRenumbering);
