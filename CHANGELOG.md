@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0.0
+
+- **Export** (scheduled task *Export releases and episode lists*, `POST /OuterFiles/Export` to queue it,
+  `GET /OuterFiles/Export` to download): one gzip-compressed JSON with every release (folder, provider ids,
+  videos with the numbers Jellyfin stores, all files, two episode nfo samples) and, per series, the episode
+  list of its metadata source as Jellyfin's providers return it, in the title language and in Russian. Read-only; made to plan and check a whole library
+  outside the server before anything is renamed.
+
 ## 0.4.6.0
 
 - **Match by episode titles, double files**: `SxxEyy-Ezz - A + B` is matched half by half; when both halves

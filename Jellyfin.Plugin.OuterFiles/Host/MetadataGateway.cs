@@ -44,6 +44,13 @@ public interface IMetadataSource
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Title or null.</returns>
     Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Names the provider that answered the episode lookups for these series ids, when known.
+    /// </summary>
+    /// <param name="seriesIds">Series provider ids.</param>
+    /// <returns>Provider name or null.</returns>
+    string? AnsweredBy(IReadOnlyDictionary<string, string> seriesIds) => null;
 }
 
 /// <summary>
@@ -54,6 +61,7 @@ public sealed class MetadataGateway : IMetadataSource
 {
     private readonly IProviderManager _providers;
     private readonly ConcurrentDictionary<string, string?> _titles = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _answeredBy = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MetadataGateway"/> class.
@@ -106,8 +114,20 @@ public sealed class MetadataGateway : IMetadataSource
             },
             cancellationToken).ConfigureAwait(false);
 
-        var title = results.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name))?.Name;
+        var hit = results.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name));
+        var title = hit?.Name;
         _titles[key] = title;
+        if (hit?.SearchProviderName is { } provider)
+        {
+            _answeredBy[IdsKey(seriesIds)] = provider;
+        }
+
         return title;
     }
+
+    /// <inheritdoc />
+    public string? AnsweredBy(IReadOnlyDictionary<string, string> seriesIds) => _answeredBy.GetValueOrDefault(IdsKey(seriesIds));
+
+    private static string IdsKey(IReadOnlyDictionary<string, string> seriesIds)
+        => string.Join(',', seriesIds.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Key + "=" + k.Value));
 }
