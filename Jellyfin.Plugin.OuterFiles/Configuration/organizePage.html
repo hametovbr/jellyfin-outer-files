@@ -212,12 +212,16 @@
                     if (!window.confirm('Apply ' + p.Moves.length + ' moves? You can undo from the journal.')) { return; }
                     busy(call('POST', 'Organize/Apply', { SessionId: p.SessionId, Hash: p.Hash })).then(function (r) {
                         if (r.Error) { Dashboard.alert('Stopped: ' + r.Error + (r.JournalId ? ' (partial run can be undone from the journal)' : '')); }
-                        else { Dashboard.alert('Done: ' + r.Done + ' steps. A library scan was queued.'); }
+                        else { Dashboard.alert('Done: ' + r.Done + ' steps. A library scan was queued.' + kept(r)); }
                         $('#OfPlanBox').style.display = 'none'; $('#OfAnalysisBox').style.display = 'none';
                         state.analysis = null; state.plan = null;
                         loadJournal();
                     });
                 });
+
+                function kept(r) {
+                    return r.Kept && r.Kept.length ? ' Kept ' + r.Kept.length + ' folder(s) with other files inside (e.g. metadata Jellyfin saved): ' + r.Kept.join(', ') : '';
+                }
 
                 function loadJournal() {
                     call('GET', 'Journal?limit=50').then(function (list) {
@@ -232,7 +236,7 @@
                             b.addEventListener('click', function () {
                                 if (!window.confirm('Undo this run?')) { return; }
                                 busy(call('POST', 'Organize/Undo/' + encodeURIComponent(b.getAttribute('data-undo')))).then(function (r) {
-                                    Dashboard.alert(r.Error ? 'Undo stopped: ' + r.Error : 'Undone: ' + r.Done + ' steps. A library scan was queued.');
+                                    Dashboard.alert(r.Error ? 'Undo stopped: ' + r.Error + ' Undo can be retried.' : 'Undone: ' + r.Done + ' steps. A library scan was queued.' + kept(r));
                                     loadJournal();
                                 });
                             });

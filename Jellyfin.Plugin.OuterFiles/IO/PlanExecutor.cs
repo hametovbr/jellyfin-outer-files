@@ -56,12 +56,13 @@ public sealed class PlanExecutor
         using var journal = _journals.Begin(plan, kind, undoOf);
         var done = 0;
         var skipped = 0;
+        var kept = new List<string>();
         foreach (var op in plan.Operations)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 journal.End("failed");
-                return new ExecutionResult(journal.Id, done, skipped, [], "Cancelled.");
+                return new ExecutionResult(journal.Id, done, skipped, [], "Cancelled.", kept);
             }
 
             var seq = journal.Start(op);
@@ -78,17 +79,25 @@ public sealed class PlanExecutor
                     skipped++;
                 }
             }
+            catch (FolderNotEmptyException ex)
+            {
+                // Nothing of ours is inside any more, but something else is (Jellyfin writes nfo files and
+                // thumbnails next to videos when it saves metadata into media folders): keep the folder.
+                journal.Finish(seq, op, "kept", ex.Message);
+                kept.Add(ex.Folder);
+                skipped++;
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PreconditionException)
             {
                 journal.Finish(seq, op, "failed", ex.Message);
                 journal.End("failed");
                 _logger.LogWarning("Outer Files: step {Seq} of {Journal} failed: {Error}", seq, journal.Id, ex.Message);
-                return new ExecutionResult(journal.Id, done, skipped, [], ex.Message);
+                return new ExecutionResult(journal.Id, done, skipped, [], ex.Message, kept);
             }
         }
 
         journal.End("completed");
-        return new ExecutionResult(journal.Id, done, skipped, [], null);
+        return new ExecutionResult(journal.Id, done, skipped, [], null, kept);
     }
 
     /// <summary>
@@ -145,13 +154,19 @@ public sealed class PlanExecutor
 
                 if (Directory.EnumerateFileSystemEntries(r.Path).Any())
                 {
-                    throw new PreconditionException($"Directory is not empty: {r.Path}");
+                    throw new FolderNotEmptyException(r.Path);
                 }
 
                 Directory.Delete(r.Path, recursive: false);
                 return true;
 
             case MoveFile m:
+                // Already moved (a retried run after a partial one): the source is gone and the target is there.
+                if (!Exists(m.Source) && File.Exists(m.Target))
+                {
+                    return false;
+                }
+
                 if (!Exists(m.Source))
                 {
                     throw new PreconditionException($"Source does not exist: {m.Source}");
@@ -237,10 +252,11 @@ public sealed class PlanExecutor
 /// </summary>
 /// <param name="JournalId">Journal of the run; null when nothing ran.</param>
 /// <param name="Done">Steps that changed something.</param>
-/// <param name="Skipped">Steps whose result was already in place.</param>
+/// <param name="Skipped">Steps whose result was already in place, or folders kept because other files are inside.</param>
 /// <param name="Conflicts">Validation conflicts that stopped the run before it started.</param>
 /// <param name="Error">Why the run stopped, or null on success.</param>
-public sealed record ExecutionResult(string? JournalId, int Done, int Skipped, IReadOnlyList<Conflict> Conflicts, string? Error)
+/// <param name="Kept">Folders the plan would remove that were kept because other files are inside.</param>
+public sealed record ExecutionResult(string? JournalId, int Done, int Skipped, IReadOnlyList<Conflict> Conflicts, string? Error, IReadOnlyList<string>? Kept = null)
 {
     /// <summary>Gets a value indicating whether the run completed.</summary>
     public bool Succeeded => Error is null;
@@ -276,4 +292,36 @@ public sealed class PreconditionException : Exception
         : base(message, innerException)
     {
     }
+}
+
+/// <summary>
+/// A folder the plan would remove holds files the plan does not know about; it is kept.
+/// </summary>
+public sealed class FolderNotEmptyException : IOException
+{
+    /// <summary>Initializes a new instance of the <see cref="FolderNotEmptyException"/> class.</summary>
+    /// <param name="folder">The folder.</param>
+    public FolderNotEmptyException(string folder)
+        : base($"Kept, other files are inside: {folder}")
+    {
+        Folder = folder;
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="FolderNotEmptyException"/> class.</summary>
+    public FolderNotEmptyException()
+        : this(string.Empty)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="FolderNotEmptyException"/> class.</summary>
+    /// <param name="message">Message.</param>
+    /// <param name="innerException">Inner exception.</param>
+    public FolderNotEmptyException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+        Folder = string.Empty;
+    }
+
+    /// <summary>Gets the folder.</summary>
+    public string Folder { get; }
 }

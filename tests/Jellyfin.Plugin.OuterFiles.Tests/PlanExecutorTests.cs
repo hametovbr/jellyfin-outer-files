@@ -79,6 +79,51 @@ public sealed class PlanExecutorTests
     }
 
     [Fact]
+    public void UndoKeepsFoldersJellyfinWroteMetadataInto()
+    {
+        using var tree = new TempTree();
+        var video = tree.File("lib/Show [2023]/[Grp] Show [01].mkv", "video");
+        var (executor, _) = Create(tree);
+        var plan = new Plan("organize", [
+            new CreateDirectory(tree.P("lib/Show (2023)"), "series folder"),
+            new MoveFile(video, tree.P("lib/Show (2023)/Show (2023) - S01E01.mkv"), "episode"),
+            new RemoveEmptyDirectory(tree.P("lib/Show [2023]"), "emptied"),
+        ]);
+        var applied = executor.Apply(plan, "organize", [tree.P("lib")], CancellationToken.None);
+        tree.File("lib/Show (2023)/tvshow.nfo", "written by Jellyfin");
+
+        var undo = executor.Undo(applied.JournalId!, [tree.P("lib")], CancellationToken.None);
+
+        Assert.True(undo.Succeeded, undo.Error);
+        Assert.Equal([tree.P("lib/Show (2023)")], undo.Kept);
+        Assert.Equal("video", File.ReadAllText(video));
+        Assert.True(File.Exists(tree.P("lib/Show (2023)/tvshow.nfo")));
+    }
+
+    [Fact]
+    public void RetriesAPartialRunWithoutTouchingWhatIsAlreadyInPlace()
+    {
+        using var tree = new TempTree();
+        var a = tree.File("lib/R/a.mkv", "a");
+        var b = tree.File("lib/R/b.mkv", "b");
+        var (executor, _) = Create(tree);
+        var plan = new Plan("organize", [
+            new CreateDirectory(tree.P("lib/N"), "folder"),
+            new MoveFile(a, tree.P("lib/N/a.mkv"), "episode"),
+            new MoveFile(b, tree.P("lib/N/b.mkv"), "episode"),
+        ]);
+        File.Move(a, tree.P("lib/N-a.tmp"));
+        Directory.CreateDirectory(tree.P("lib/N"));
+        File.Move(tree.P("lib/N-a.tmp"), tree.P("lib/N/a.mkv"));
+
+        var result = executor.Apply(plan, "organize", [tree.P("lib")], CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal((1, 2), (result.Done, result.Skipped));
+        Assert.Equal("b", File.ReadAllText(tree.P("lib/N/b.mkv")));
+    }
+
+    [Fact]
     public void RejectsPlansThatTouchPathsOutsideTheRoots()
     {
         using var tree = new TempTree();
