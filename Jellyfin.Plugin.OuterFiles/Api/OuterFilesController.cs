@@ -91,6 +91,30 @@ public class OuterFilesController : ControllerBase
     /// <returns>Journal summaries.</returns>
     [HttpGet("Journal")]
     public ActionResult<IReadOnlyList<JournalSummary>> GetJournal([FromQuery] int limit = 50) => Ok(_journals.List(limit));
+
+    /// <summary>
+    /// Queues the export task (releases, files, episode lists of the metadata sources). Changes nothing.
+    /// </summary>
+    /// <returns>Accepted.</returns>
+    [HttpPost("Export")]
+    public ActionResult QueueExport()
+    {
+        _taskManager.QueueScheduledTask<ExportScheduledTask>();
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Downloads the last export.
+    /// </summary>
+    /// <returns>The gzip-compressed JSON file, or 404 when no export was made yet.</returns>
+    [HttpGet("Export")]
+    public ActionResult GetExport()
+    {
+        var export = (Services.ExportService)HttpContext.RequestServices.GetService(typeof(Services.ExportService))!;
+        return System.IO.File.Exists(export.File)
+            ? PhysicalFile(export.File, "application/gzip", "outer-files-export.json.gz")
+            : NotFound();
+    }
 }
 
 /// <summary>

@@ -31,6 +31,13 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<NamingRulesService>();
         serviceCollection.AddSingleton<IMetadataSource, MetadataGateway>();
         serviceCollection.AddSingleton<OrganizeService>();
+        serviceCollection.AddSingleton(sp => new ExportService(
+            sp.GetRequiredService<ILibrarySource>(),
+            sp.GetRequiredService<IMetadataSource>(),
+            sp.GetRequiredService<FileSystemReader>(),
+            DataFolder(sp, "export"),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ExportService>>()));
+        serviceCollection.AddSingleton<IScheduledTask, ExportScheduledTask>();
         serviceCollection.AddHostedService<NamingRulesHostedService>();
     }
 

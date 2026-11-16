@@ -195,6 +195,30 @@ public sealed class OrganizeServiceTests
         Assert.Empty(right.TitleMismatches!);
     }
 
+    [Fact]
+    public async Task ExportHoldsReleasesFilesAndTheEpisodeListsOfTheirSource()
+    {
+        using var tree = new TempTree();
+        const string rel = "tv/Show";
+        var video = tree.File($"{rel}/Season 1/Show - S01E01-E02 - A + B.mkv");
+        tree.File($"{rel}/Season 1/Show - S01E01-E02 - A + B.nfo", "<episodedetails><title>A</title></episodedetails>");
+        var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Show", 2020, new Dictionary<string, string> { ["Tmdb"] = "7" }, [new ReleaseVideo(Guid.NewGuid(), video, 1, 1, 1080)]);
+        var export = new ExportService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]),
+            new FakeMetadata((s, e) => s == 1 && e is 1 or 2 or 4 ? $"Title {e}" : s == 0 && e == 3 ? "Special" : null), new FileSystemReader(), tree.P("_data/export"), NullLogger<ExportService>.Instance);
+
+        await export.RunAsync(new PluginConfiguration(), null, CancellationToken.None);
+
+        await using var gzip = new System.IO.Compression.GZipStream(File.OpenRead(export.File), System.IO.Compression.CompressionMode.Decompress);
+        var read = (await System.Text.Json.JsonSerializer.DeserializeAsync<Export>(gzip))!;
+        var only = Assert.Single(read.Releases);
+        Assert.Equal(["Season 1/Show - S01E01-E02 - A + B.mkv", "Season 1/Show - S01E01-E02 - A + B.nfo"], only.Files);
+        Assert.Contains("<title>A</title>", Assert.Single(only.NfoSamples).Value, StringComparison.Ordinal);
+        var catalog = read.Catalogs[only.CatalogKey!][0];
+
+        // An unnamed episode in the middle of a season (S01E03) does not end the list.
+        Assert.Equal([(0, 3), (1, 1), (1, 2), (1, 4)], catalog.Episodes.Select(c => (c.Season, c.Episode)));
+    }
+
     [Theory]
     [InlineData("Tmdb", "238681", false)]
     [InlineData("tmdb", "42253", true)]
