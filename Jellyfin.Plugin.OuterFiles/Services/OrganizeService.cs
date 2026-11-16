@@ -341,7 +341,7 @@ public sealed class OrganizeService
         var library = session.Release.LibraryFolder;
         var trash = Path.Combine(library, ".outer-files-trash", DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss", CultureInfo.InvariantCulture));
         var templates = Templates(config);
-        var probe = RenamePlanner.Build(Context(session, identity, library, trash, templates, titles, qualities, tracks, new HashSet<string>(), new HashSet<string>()), decisions);
+        var probe = RenamePlanner.Build(Context(session, identity, library, trash, templates, titles, qualities, tracks, new HashSet<string>(), new HashSet<string>(), request.TrashLeftovers), decisions);
 
         // Real file system state around the source and target folders.
         var existingFiles = new HashSet<string>(_reader.Snapshot(inventory.Root), StringComparer.Ordinal);
@@ -353,7 +353,7 @@ public sealed class OrganizeService
             existingDirs.UnionWith(Directory.EnumerateDirectories(dir, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }));
         }
 
-        var plan = RenamePlanner.Build(Context(session, identity, library, trash, templates, titles, qualities, tracks, existingFiles, existingDirs), decisions);
+        var plan = RenamePlanner.Build(Context(session, identity, library, trash, templates, titles, qualities, tracks, existingFiles, existingDirs, request.TrashLeftovers), decisions);
         var conflicts = plan.Conflicts.Concat(PlanValidator.Validate(plan.Plan, [library])).ToList();
         conflicts.AddRange(decisions
             .Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Episode is null)
@@ -438,8 +438,8 @@ public sealed class OrganizeService
     private static Templates Templates(PluginConfiguration c) =>
         new(c.SeriesFolderTemplate, c.SeasonFolderTemplate, c.EpisodeFileTemplate, c.MovieFolderTemplate, c.MovieFileTemplate);
 
-    private static RenameContext Context(Session s, Identity identity, string library, string trash, Templates templates, Dictionary<string, string> titles, Dictionary<string, string> qualities, Dictionary<string, TrackDescriptor> tracks, IReadOnlySet<string> files, IReadOnlySet<string> dirs) =>
-        new(s.Inventory, identity, library, trash, templates, titles, qualities, tracks, files, dirs);
+    private static RenameContext Context(Session s, Identity identity, string library, string trash, Templates templates, Dictionary<string, string> titles, Dictionary<string, string> qualities, Dictionary<string, TrackDescriptor> tracks, IReadOnlySet<string> files, IReadOnlySet<string> dirs, bool trashLeftovers) =>
+        new(s.Inventory, identity, library, trash, templates, titles, qualities, tracks, files, dirs, trashLeftovers);
 
     private static List<RowDecision> ProposeMovie(Inventory inventory, IReadOnlyDictionary<string, int> heights)
     {
@@ -574,7 +574,8 @@ public sealed record AnalysisRow(string Relative, int Sidecars, int OuterTracks,
 /// <param name="Year">Year.</param>
 /// <param name="ProviderIds">Provider ids for episode titles.</param>
 /// <param name="Rows">Decisions by relative path.</param>
-public sealed record PlanRequest(string SessionId, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<PlanRow> Rows);
+/// <param name="TrashLeftovers">Also move what would stay in the old folder (skipped copies, scans, old nfo) to the trash folder.</param>
+public sealed record PlanRequest(string SessionId, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<PlanRow> Rows, bool TrashLeftovers = false);
 
 /// <summary>A decision for one video.</summary>
 /// <param name="Relative">Path relative to the release folder.</param>

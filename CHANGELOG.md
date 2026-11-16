@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3.0
+
+- **Organize: move leftovers to the trash** (checkbox on the organize page, `TrashLeftovers` in
+  `POST /OuterFiles/Organize/Plan`): everything the plan would leave in the old folder (skipped duplicate
+  copies with their tracks, scans, old nfo and artwork) goes to `<library>/.outer-files-trash/…` as well, and
+  the emptied old folder is removed. Without it, the old folder stays in the library as a second series with
+  the skipped copies (seen on K-ON!, JUJUTSU KAISEN, Paw Patrol). Undo puts everything back; the trash folder
+  is ignored by Jellyfin and can be emptied by hand once the result is checked.
+
 ## 0.4.2.0
 
 - **Match by episode titles**: a file named `SxxEyy` (season 1 and later) whose title the source does not

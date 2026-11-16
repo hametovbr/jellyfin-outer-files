@@ -182,4 +182,29 @@ public sealed class OrganizeTests
 
         Assert.Equal((RenamePlanner.EpisodeExists, files[0]), (conflict.Code, conflict.Path));
     }
+
+    [Theory]
+    [InlineData(false, 3)]
+    [InlineData(true, 0)]
+    public void LeftoversCanGoToTheTrashSoTheOldFolderDisappears(bool trashLeftovers, int left)
+    {
+        const string root = "/lib/Show";
+        string[] files = [root + "/Season 1/Show - S01E01.mkv", root + "/Copy/Show - 01 [720p].mkv", root + "/Copy/Show - 01 [720p].ass", root + "/Scans/01.jpg"];
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "Show", 2020), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Season 1", root + "/Copy", root + "/Scans" }, trashLeftovers);
+        RowDecision[] rows =
+        [
+            new(files[0], RowAction.Episode, 1, 1, null, null, "SxxEyy"),
+            new(files[1], RowAction.Skip, null, null, null, null, "duplicate"),
+        ];
+
+        var plan = RenamePlanner.Build(ctx, rows);
+
+        Assert.Equal(left, plan.LeftInPlace.Count);
+        Assert.Empty(plan.Conflicts);
+        Assert.Equal(trashLeftovers, plan.Plan.Operations.OfType<RemoveEmptyDirectory>().Any(d => d.Path == root));
+        Assert.All(plan.Moves.Where(m => m.What == "trash"), m => Assert.StartsWith("/lib/.outer-files-trash/x/", m.To, StringComparison.Ordinal));
+    }
 }
