@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4.0
+
+- **Organize list**: a folder that an earlier organize run moved files out of, and that still holds videos
+  (the skipped duplicate copies), is listed as "leftovers of a release organized earlier". Before, such a
+  folder was listed only if it had another problem, so well-named leftovers (Paw Patrol: 8 copies in season
+  folders) stayed in the library as a second series with no way to reach them from the page.
+
 ## 0.4.3.0
 
 - **Organize: move leftovers to the trash** (checkbox on the organize page, `TrashLeftovers` in

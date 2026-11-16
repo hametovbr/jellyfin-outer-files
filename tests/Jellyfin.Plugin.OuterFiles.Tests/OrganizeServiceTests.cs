@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.OuterFiles.Domain.Plans;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -142,6 +143,26 @@ public sealed class OrganizeServiceTests
         Assert.Equal((RowAction.Special, 0, 2, (int?)1), byTitle["JN.39"]);
         Assert.Equal((RowAction.Special, 0, 2, (int?)2), byTitle["JN.40"]);
         Assert.Equal(RowAction.Skip, byTitle["JN.41"].Action);
+    }
+
+    [Fact]
+    public void WhatAnOrganizeRunLeftBehindIsListedAgain()
+    {
+        using var tree = new TempTree();
+        const string rel = "tv/Paw Patrol";
+        var kept = tree.File($"{rel}/Season 1/Paw Patrol - S01E01.mkv");
+        var copy = tree.File($"{rel}/Season 10/Paw Patrol - S10E25.mkv");
+        var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Paw Patrol", null, new Dictionary<string, string>(), [new ReleaseVideo(Guid.NewGuid(), copy, 10, 25, 1080)]);
+        var executor = new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance);
+        var service = new OrganizeService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata((_, _) => null), new FileSystemReader(),
+            executor, new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
+        var config = new PluginConfiguration { SeriesFolderTemplate = "{Series Title}" };
+        Assert.Empty(service.Candidates(config));
+
+        var plan = new Plan("organize", [new CreateDirectory(tree.P("tv/PAW Patrol (2013)"), "x"), new MoveFile(kept, tree.P("tv/PAW Patrol (2013)/a.mkv"), "x")]);
+        Assert.True(executor.Apply(plan, "organize", [tree.P("tv")], CancellationToken.None).Succeeded);
+
+        Assert.Contains("leftovers of a release organized earlier (skipped copies)", Assert.Single(service.Candidates(config)).Problems);
     }
 
     [Theory]
