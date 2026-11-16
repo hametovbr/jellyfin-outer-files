@@ -8,12 +8,12 @@
     "category": "Library",
     "versions": [
       {
-        "version": "0.4.0.0",
-        "changelog": "0.4.0: organize can number episodes by the titles in their file names (releases that count episodes their own way, specials mixed into the run), matched against all episodes and specials of the series.\n",
+        "version": "0.4.1.0",
+        "changelog": "0.4.1: a plan with two files on one episode is a conflict instead of a \"(2)\" copy; with title matching, untitled copies follow the titled copy that carries the same number.\n",
         "targetAbi": "12.4.0.0",
-        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.0/outer-files_0.4.0.0.zip",
-        "checksum": "96fbc33e07ac7eec34bc7bb7ff4202c0",
-        "timestamp": "2026-11-16T10:17:07Z"
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.1/outer-files_0.4.1.0.zip",
+        "checksum": "526edd2176422a5d384460a51683af45",
+        "timestamp": "2026-11-16T11:22:20Z"
       }
     ],
     "image": "thumb.png",
