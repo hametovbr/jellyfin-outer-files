@@ -68,9 +68,19 @@ public sealed class OrganizeService
         ArgumentNullException.ThrowIfNull(config);
         var templates = Templates(config);
         var result = new List<Candidate>();
+
+        // Folders an earlier organize run moved files out of: what is still inside are skipped copies.
+        var movedOut = _executor.AppliedMoves("organize")
+            .Where(m => !m.Target.Contains("/.outer-files-trash/", StringComparison.Ordinal))
+            .ToList();
         foreach (var release in _library.Releases())
         {
             var problems = new List<string>();
+            if (movedOut.Any(m => PlanValidator.IsInside(m.Source, release.Root) && !PlanValidator.IsInside(m.Target, release.Root)))
+            {
+                problems.Add("leftovers of a release organized earlier (skipped copies)");
+            }
+
             var expectedRoot = Path.Combine(release.LibraryFolder, NameTemplate.Render(release.IsMovie ? templates.MovieFolder : templates.SeriesFolder, new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 ["series title"] = release.Title,

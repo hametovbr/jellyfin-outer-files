@@ -19,6 +19,18 @@ public sealed class PlanExecutor
     private readonly ILogger<PlanExecutor> _logger;
 
     /// <summary>
+    /// Lists file moves of completed runs of a kind that were not undone.
+    /// </summary>
+    /// <param name="kind">Journal kind.</param>
+    /// <returns>Source and target of every move that ran.</returns>
+    public IReadOnlyList<MoveFile> AppliedMoves(string kind) => _journals.List(1000)
+        .Where(j => j.Kind == kind && j.UndoOf is null && j.UndoneBy is null)
+        .Select(j => _journals.Read(j.Id))
+        .Where(j => j is not null)
+        .SelectMany(j => j!.Applied.OfType<MoveFile>())
+        .ToList();
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="PlanExecutor"/> class.
     /// </summary>
     /// <param name="journals">Journal store.</param>
