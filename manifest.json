@@ -10,6 +10,14 @@
     "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png",
     "versions": [
       {
+        "version": "0.6.0.0",
+        "changelog": "0.5.0: diagnostic export (scheduled task \"Export releases and episode lists\", GET /OuterFiles/Export): every release with its files and the episode lists of its metadata source in one file. Changes nothing.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.6.0/outer-files_0.6.0.0.zip",
+        "checksum": "25e0a1a4327cf07c8b1e2b989b8ba02a",
+        "timestamp": "2026-11-16T21:22:52Z"
+      },
+      {
         "version": "0.5.0.0",
         "changelog": "0.5.0: diagnostic export (scheduled task \"Export releases and episode lists\", GET /OuterFiles/Export): every release with its files and the episode lists of its metadata source in one file. Changes nothing.\n",
         "targetAbi": "12.4.0.0",
