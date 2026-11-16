@@ -261,6 +261,16 @@ public static class RenamePlanner
                 $"{code} is planned for {ranked.Count} files: {string.Join(", ", ranked.Select(d => $"{byVideo[d.Video].Relative} ({tracks[d.Video]} tracks)"))}. Skip all but one (the first has the most tracks) or give them different numbers."));
         }
 
+        var active = decisions.Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Part is null && d.Episode is not null && byVideo.ContainsKey(d.Video)).ToList();
+        foreach (var wide in active.Where(d => d.EpisodeEnd > d.Episode))
+        {
+            foreach (var d in active.Where(d => d != wide && d.Action == wide.Action && d.Season == wide.Season && d.Episode != wide.Episode
+                && d.Episode >= wide.Episode && d.Episode <= wide.EpisodeEnd))
+            {
+                conflicts.Add(new Conflict(DuplicateEpisode, d.Video, $"S{d.Season:00}E{d.Episode:00} is also inside {byVideo[wide.Video].Relative} (S{wide.Season:00}E{wide.Episode:00}-E{wide.EpisodeEnd:00}). Skip one of them."));
+            }
+        }
+
         var ops = new List<Operation>();
         ops.AddRange(Mkdirs(moves.Select(m => Path.GetDirectoryName(m.To)!), context.ExistingDirs));
         ops.AddRange(MoveOps(moves));

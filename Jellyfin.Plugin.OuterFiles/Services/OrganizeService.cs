@@ -314,6 +314,10 @@ public sealed class OrganizeService
         // Episode titles from the metadata source.
         var titles = new Dictionary<string, string>(StringComparer.Ordinal);
         var missingTitles = new List<string>();
+        var titleMismatches = new List<string>();
+        var titled = 0;
+        var planned = new List<(string Video, string Code, string Title)>();
+        var stems = inventory.Videos.ToDictionary(v => v.Path, v => v.Stem, StringComparer.Ordinal);
         if (!request.IsMovie && request.ProviderIds.Count > 0)
         {
             foreach (var d in decisions.Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Episode is not null))
@@ -327,7 +331,35 @@ public sealed class OrganizeService
                 else
                 {
                     titles[d.Video] = title;
+
+                    planned.Add((d.Video, $"S{season:00}E{d.Episode:00}", title));
                 }
+            }
+        }
+
+        // The title in a file name says which episode the file really is: it should fit the source's title for
+        // its number, and not fit another planned episode clearly better (a release numbered by another source).
+        foreach (var (video, code, title) in planned)
+        {
+            if (!stems.TryGetValue(video, out var stem) || TitleMatcher.TitleOf(stem) is not { } own)
+            {
+                continue;
+            }
+
+            titled++;
+            var names = own.Title.Split(" + ").Append(own.Title).ToList();
+            var here = names.Max(n => TitleMatcher.Similarity(n, title));
+            var elsewhere = planned.Where(p => p.Video != video && p.Title != title)
+                .Select(p => (p.Code, p.Title, Score: names.Max(n => TitleMatcher.Similarity(n, p.Title))))
+                .OrderByDescending(p => p.Score)
+                .FirstOrDefault();
+            if (here < 0.9 && elsewhere.Score >= 0.85 && elsewhere.Score > here + 0.1)
+            {
+                titleMismatches.Add($"{code}: file \"{own.Title}\", source \"{title}\"; the source has \"{elsewhere.Title}\" as {elsewhere.Code}");
+            }
+            else if (here < 0.35)
+            {
+                titleMismatches.Add($"{code}: file \"{own.Title}\", source \"{title}\"");
             }
         }
 
@@ -369,6 +401,13 @@ public sealed class OrganizeService
             .Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Episode is null)
             .Select(d => new Conflict("missing-number", d.Video, "An episode needs an episode number.")));
         conflicts.AddRange(ParseBack(plan, decisions));
+        if (titleMismatches.Count >= 5 && titleMismatches.Count * 3 >= titled)
+        {
+            conflicts.Add(new Conflict(
+                "numbering-mismatch",
+                inventory.Root,
+                $"{titleMismatches.Count} of {titled} episode titles in the file names differ from the source's titles for the same numbers: the release is numbered differently from this source (e.g. TVDB order against TMDb). Use \"Match by episode titles\", or pick the series from the source the files were numbered by."));
+        }
 
         session.Plan = plan;
         session.Library = library;
@@ -380,7 +419,8 @@ public sealed class OrganizeService
             plan.Plan.Operations.Count,
             plan.LeftInPlace.Select(f => Inventory.Relative(library, f)).ToList(),
             conflicts,
-            missingTitles);
+            missingTitles,
+            titleMismatches);
     }
 
     /// <summary>
@@ -605,7 +645,8 @@ public sealed record PlanRow(string Relative, RowAction Action, int? Season, int
 /// <param name="LeftInPlace">Files not touched.</param>
 /// <param name="Conflicts">Blocking problems.</param>
 /// <param name="MissingTitles">Episodes the metadata source does not know.</param>
-public sealed record PlanView(string SessionId, string Hash, string TargetRoot, IReadOnlyList<MoveView> Moves, int Operations, IReadOnlyList<string> LeftInPlace, IReadOnlyList<Conflict> Conflicts, IReadOnlyList<string> MissingTitles);
+/// <param name="TitleMismatches">Episodes whose title in the file name differs from the source's title for that number.</param>
+public sealed record PlanView(string SessionId, string Hash, string TargetRoot, IReadOnlyList<MoveView> Moves, int Operations, IReadOnlyList<string> LeftInPlace, IReadOnlyList<Conflict> Conflicts, IReadOnlyList<string> MissingTitles, IReadOnlyList<string>? TitleMismatches = null);
 
 /// <summary>A move for display.</summary>
 /// <param name="From">From (relative to the library folder).</param>

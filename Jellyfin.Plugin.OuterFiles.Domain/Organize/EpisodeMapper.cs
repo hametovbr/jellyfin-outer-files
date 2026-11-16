@@ -226,6 +226,17 @@ public static class EpisodeMapper
             v => v.Path,
             v => v.OuterTracks.Count + v.Sidecars.Count(s => MediaKinds.Of(s.Path) is FileKind.Audio or FileKind.Subtitle),
             StringComparer.Ordinal);
+        // A double file (S10E25-E26) makes single copies of its episodes (S10E25, S10E26) duplicates.
+        foreach (var wide in rows.Where(r => r.Action is RowAction.Episode or RowAction.Special && r.Part is null && r.EpisodeEnd > r.Episode).ToList())
+        {
+            foreach (var r in rows.Where(r => r != wide && r.Action == wide.Action && r.Season == wide.Season && r.Part is null
+                && r.Episode >= wide.Episode && (r.EpisodeEnd ?? r.Episode) <= wide.EpisodeEnd
+                && (r.Episode, r.EpisodeEnd ?? r.Episode) != (wide.Episode, wide.EpisodeEnd)).ToList())
+            {
+                rows[rows.IndexOf(r)] = r with { Action = RowAction.Skip, Reason = $"duplicate of {relative[wide.Video]}, which holds S{wide.Season:00}E{wide.Episode:00}-E{wide.EpisodeEnd:00}" };
+            }
+        }
+
         foreach (var group in rows.Where(r => r.Action is RowAction.Episode or RowAction.Special).GroupBy(r => (r.Season, r.Episode, r.Part)).Where(g => g.Count() > 1))
         {
             var best = group
