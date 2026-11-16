@@ -57,6 +57,53 @@ public static class EpisodeMapper
     }
 
     /// <summary>
+    /// Proposes rows from episode titles: files whose name carries a title take the matched episode (special
+    /// for season 0); files with a title the source does not know are skipped with the reason; files without a
+    /// title keep the usual proposal. Duplicates are resolved afterwards as usual.
+    /// </summary>
+    /// <param name="inventory">The release.</param>
+    /// <param name="matches">Results of <see cref="TitleMatcher.Match"/>.</param>
+    /// <param name="heights">Video heights from the library.</param>
+    /// <returns>One decision per video, in inventory order.</returns>
+    public static IReadOnlyList<RowDecision> ProposeByTitles(Inventory inventory, IReadOnlyList<TitleMatch> matches, IReadOnlyDictionary<string, int> heights)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(matches);
+        ArgumentNullException.ThrowIfNull(heights);
+        var byVideo = matches.ToDictionary(m => m.Video, StringComparer.Ordinal);
+        var shared = matches.Where(m => m.Match is not null)
+            .GroupBy(m => (m.Match!.Season, m.Match.Episode))
+            .Where(g => g.Count() > 1)
+            .SelectMany(g => g)
+            .Select(m => m.Video)
+            .ToHashSet(StringComparer.Ordinal);
+        var rows = inventory.Videos.Select(v =>
+        {
+            var row = ProposeOne(v, null);
+            if (!byVideo.TryGetValue(v.Path, out var m) || row.Action == RowAction.Extra)
+            {
+                return row;
+            }
+
+            var score = m.Score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+            if (m.Match is not { } e)
+            {
+                return row with { Action = RowAction.Skip, Season = null, Episode = null, EpisodeEnd = null, Part = null, Reason = $"title \"{m.FileTitle}\" not found in the metadata source (best {score})" };
+            }
+
+            return new RowDecision(
+                v.Path,
+                e.Season == 0 ? RowAction.Special : RowAction.Episode,
+                e.Season,
+                e.Episode,
+                null,
+                shared.Contains(v.Path) ? m.Part : null,
+                $"title \"{m.FileTitle}\" = \"{e.Title}\" ({score})");
+        }).ToList();
+        return ResolveDuplicates(rows, inventory, heights);
+    }
+
+    /// <summary>
     /// Converts an absolute episode number to season/episode with per-season counts.
     /// </summary>
     /// <param name="absolute">Absolute number (1-based).</param>

@@ -73,7 +73,10 @@ Dashboard → **Outer Files: Organize**:
 2. **Organize** opens the analysis: one row per video with the proposed action (episode, special, extra,
    movie, skip), season, episode and the reason. Search the metadata providers to pick the right series;
    episode titles are fetched with its ids. Absolute numbering (`136. Title`) can be converted with the
-   season sizes from the metadata source. Duplicate releases of the same episode are proposed as *skip*.
+   season sizes from the metadata source. **Match by episode titles** numbers the files by the titles in their names instead
+   (`JN.02a.Обычный мальчик` → S01E02 "Normal Boy"), specials included, for releases that count episodes
+   their own way. Duplicate releases of the same episode are proposed as *skip*; the copy with more dubs and
+   subtitles is kept.
    Split episodes (`JN.02a`, `JN.02b`) become parts Jellyfin stacks into one episode.
 3. **Build plan** shows every move. Nothing is overwritten. Every new episode name is checked to read back
    as the intended season/episode with the server's parser.
