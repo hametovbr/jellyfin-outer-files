@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1.0
+
+- **Plan**: two files planned as the same episode (rows edited by hand or through the API) are a
+  `duplicate-episode` conflict naming both files and their track counts, instead of a second copy named
+  `… (2)`. Seen on K-ON!: Henshin `_13_` set to the special "Winter Days!" next to Henshin `sp_01`.
+- **Match by episode titles**: a file without a title that carries the same number as a titled copy follows
+  that copy (Henshin `sp_01` with Sonarr's `S00E01 - URA-ON! …`, which TMDb numbers S00E02; Henshin `_13_`
+  with `S01E13 - Winter Days!`, TMDb S00E01), and the better of the two is kept as usual.
+
 ## 0.4.0.0
 
 - **Match by episode titles** (organize page, `POST /OuterFiles/Organize/Titles`): for releases that number

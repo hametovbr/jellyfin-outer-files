@@ -79,4 +79,29 @@ public sealed class TitleMatcherTests
         Assert.Equal((RowAction.Episode, 1, 2), (rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Action, rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Season, rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Episode));
         Assert.Equal(RowAction.Skip, rows["K-ON! - S01E05 - Unknown Thing Bluray-1080p.mkv"].Action);
     }
+
+    [Fact]
+    public void UntitledCopiesFollowTheTitledCopyWithTheSameNumber()
+    {
+        const string root = "/tv/K-ON!";
+        string[] files =
+        [
+            root + "/Specials/K-ON! - S00E01 - URA-ON! - Yui's Curiosity Series Bluray-1080p.mkv",
+            root + "/[Henshin] K-ON! (BDrip)/Special/[Henshin]_K-ON!_sp_01_(BD_x264_1920x1080_FLAC).mkv",
+            root + "/[Henshin] K-ON! (BDrip)/Rus Sub/[Henshin]_K-ON!_sp_01_(BD_x264_1920x1080_FLAC).ass",
+            root + "/Season 1/K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv",
+            root + "/[Henshin] K-ON! (BDrip)/[Henshin]_K-ON!_13_(BD_x264_1920x1080_FLAC).mkv",
+            root + "/[Henshin] K-ON! (BDrip)/[Henshin]_K-ON!_14_(BD_x264_1920x1080_FLAC).mkv",
+        ];
+        var inv = Inventory.Build(root, files);
+        var matches = TitleMatcher.Match(inv.Videos.Select(v => (v.Path, Path.GetFileNameWithoutExtension(v.Path))), [new(0, 1, "Winter Days!"), new(0, 2, "URA-ON! - Yui's Curiosity Series")]);
+
+        var rows = EpisodeMapper.ProposeByTitles(inv, matches, new Dictionary<string, int>()).ToDictionary(r => Path.GetFileName(r.Video), r => (r.Action, r.Season, r.Episode));
+
+        Assert.Equal((RowAction.Special, 0, 2), rows["[Henshin]_K-ON!_sp_01_(BD_x264_1920x1080_FLAC).mkv"]);
+        Assert.Equal(RowAction.Skip, rows["K-ON! - S00E01 - URA-ON! - Yui's Curiosity Series Bluray-1080p.mkv"].Action);
+        Assert.Equal((RowAction.Special, 0, 1), rows["K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv"]);
+        Assert.Equal((RowAction.Skip, 0, 1), rows["[Henshin]_K-ON!_13_(BD_x264_1920x1080_FLAC).mkv"]);
+        Assert.Equal((RowAction.Episode, 1, 14), rows["[Henshin]_K-ON!_14_(BD_x264_1920x1080_FLAC).mkv"]);
+    }
 }

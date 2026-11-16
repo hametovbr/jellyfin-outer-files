@@ -82,6 +82,9 @@ public static class RenamePlanner
     /// <summary>A planned file already exists and is not moved away by the plan.</summary>
     public const string TargetExists = "target-exists";
 
+    /// <summary>Two videos are planned as the same episode (and are not parts of it).</summary>
+    public const string DuplicateEpisode = "duplicate-episode";
+
     /// <summary>
     /// Plans the reorganization of one release.
     /// </summary>
@@ -214,6 +217,21 @@ public static class RenamePlanner
         foreach (var m in moves.Where(m => context.ExistingFiles.Contains(m.To) && !movedFrom.Contains(m.To)))
         {
             conflicts.Add(new Conflict(TargetExists, m.To, "A different file already has this name."));
+        }
+
+        // Edited rows can put two copies on one episode; the plan would keep both under "(2)" names.
+        var tracks = inv.Videos.ToDictionary(v => v.Path, v => v.OuterTracks.Count + v.Sidecars.Count(s => MediaKinds.Of(s.Path) is FileKind.Audio or FileKind.Subtitle), StringComparer.Ordinal);
+        foreach (var group in decisions
+            .Where(d => d.Action is RowAction.Episode or RowAction.Special && byVideo.ContainsKey(d.Video))
+            .GroupBy(d => (d.Season, d.Episode, d.Part))
+            .Where(g => g.Count() > 1))
+        {
+            var ranked = group.OrderByDescending(d => tracks[d.Video]).ToList();
+            var code = $"S{group.Key.Season:00}E{group.Key.Episode:00}" + (group.Key.Part is { } p ? $" pt{p}" : string.Empty);
+            conflicts.Add(new Conflict(
+                DuplicateEpisode,
+                ranked[1].Video,
+                $"{code} is planned for {ranked.Count} files: {string.Join(", ", ranked.Select(d => $"{byVideo[d.Video].Relative} ({tracks[d.Video]} tracks)"))}. Skip all but one (the first has the most tracks) or give them different numbers."));
         }
 
         var ops = new List<Operation>();
