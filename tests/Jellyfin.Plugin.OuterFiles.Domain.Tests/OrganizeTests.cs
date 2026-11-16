@@ -207,4 +207,28 @@ public sealed class OrganizeTests
         Assert.Equal(trashLeftovers, plan.Plan.Operations.OfType<RemoveEmptyDirectory>().Any(d => d.Path == root));
         Assert.All(plan.Moves.Where(m => m.What == "trash"), m => Assert.StartsWith("/lib/.outer-files-trash/x/", m.To, StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ADoubleFileMakesSingleCopiesOfItsEpisodesDuplicates()
+    {
+        const string root = "/tv/Paw Patrol";
+        string[] files =
+        [
+            root + "/Season 10/Paw Patrol - S10E25-E26 - Smiley's Cup + Baby Caribou WEBDL-1080p.mp4",
+            root + "/Season 10/Paw Patrol - S10E25 - Smiley's Cup WEBDL-1080p.mp4",
+            root + "/Season 10/Paw Patrol - S10E26 - Baby Caribou WEBDL-1080p.mp4",
+            root + "/Season 10/Paw Patrol - S10E27 - Other WEBDL-1080p.mp4",
+        ];
+        var inv = Inventory.Build(root, files);
+
+        var rows = EpisodeMapper.Propose(inv, null, new Dictionary<string, int>());
+
+        Assert.Equal([RowAction.Episode, RowAction.Skip, RowAction.Skip, RowAction.Episode], files.Select(f => rows.Single(r => r.Video == f).Action));
+
+        var ctx = new RenameContext(inv, new Identity(false, "PAW Patrol", 2013), "/tv", "/tv/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/tv", root, root + "/Season 10" });
+        var forced = rows.Select(r => r.Video == files[2] ? r with { Action = RowAction.Episode } : r).ToList();
+        Assert.Equal(RenamePlanner.DuplicateEpisode, Assert.Single(RenamePlanner.Build(ctx, forced).Conflicts).Code);
+    }
 }

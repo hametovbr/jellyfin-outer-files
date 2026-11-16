@@ -165,6 +165,36 @@ public sealed class OrganizeServiceTests
         Assert.Contains("leftovers of a release organized earlier (skipped copies)", Assert.Single(service.Candidates(config)).Problems);
     }
 
+    [Fact]
+    public async Task APlanAgainstASourceWithAnotherNumberingIsAConflict()
+    {
+        using var tree = new TempTree();
+        const string rel = "tv/Paw Patrol";
+        string[] own = ["Pups Save a Goodway", "Pups Save a Hoedown", "Pups Save the Salmon", "Pups vs Ouchy Paws", "Pups Save a Robo-Saurus", "Pups Chill Out"];
+        // The source has the same episodes two numbers later (another ordering of the season).
+        string[] source = [own[4], own[5], own[0], own[1], own[2], own[3]];
+        var videos = own.Select((t, i) => new ReleaseVideo(Guid.NewGuid(), tree.File($"{rel}/Season 1/Paw Patrol - S01E{i + 1:00} - {t} WEBDL-1080p.mp4"), 1, i + 1, 1080)).ToList();
+        var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Paw Patrol", 2013, new Dictionary<string, string>(), videos);
+        OrganizeService Service(Func<int, int, string?> titles) => new(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata(titles), new FileSystemReader(),
+            new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance), new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
+
+        async Task<PlanView> PlanWith(Func<int, int, string?> titles)
+        {
+            var service = Service(titles);
+            var a = service.Analyze(tree.P(rel))!;
+            var rows = a.Rows.Select(r => new PlanRow(r.Relative, r.Action, r.Season, r.Episode, r.EpisodeEnd, r.Part)).ToList();
+            return (await service.PlanAsync(new PlanRequest(a.SessionId, false, "PAW Patrol", 2013, new Dictionary<string, string> { ["Tmdb"] = "57532" }, rows), new PluginConfiguration(), CancellationToken.None))!;
+        }
+
+        var wrong = await PlanWith((s, e) => s == 1 && e <= 6 ? source[e - 1] : null);
+        Assert.Contains(wrong.Conflicts, c => c.Code == "numbering-mismatch");
+        Assert.Equal(6, wrong.TitleMismatches!.Count);
+
+        var right = await PlanWith((s, e) => s == 1 && e <= 6 ? own[e - 1] + "!" : null);
+        Assert.Empty(right.Conflicts);
+        Assert.Empty(right.TitleMismatches!);
+    }
+
     [Theory]
     [InlineData("Tmdb", "238681", false)]
     [InlineData("tmdb", "42253", true)]

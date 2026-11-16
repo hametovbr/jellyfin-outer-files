@@ -205,6 +205,7 @@
                         if (p.Conflicts.length) {
                             html += '<div class="of-bad"><strong>Cannot apply:</strong><ul>' + p.Conflicts.map(function (c) { return '<li>' + esc(c.Code) + ': <code>' + esc(c.Path) + '</code> — ' + esc(c.Message) + '</li>'; }).join('') + '</ul></div>';
                         }
+                        if (p.TitleMismatches && p.TitleMismatches.length) { html += '<details open><summary>' + p.TitleMismatches.length + ' titles in file names differ from the source for the same number (check the numbering)</summary><ul>' + p.TitleMismatches.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></details>'; }
                         if (p.MissingTitles.length) { html += '<div>No title in the metadata source for: ' + p.MissingTitles.map(esc).join(', ') + '</div>'; }
                         html += '<table><tr><th>From</th><th>To</th><th></th></tr>' + p.Moves.map(function (m) {
                             return '<tr><td><code>' + esc(m.From) + '</code></td><td><code>' + esc(m.To) + '</code></td><td class="of-dim">' + esc(m.What) + '</td></tr>';

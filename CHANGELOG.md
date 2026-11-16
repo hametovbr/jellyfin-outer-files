@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.5.0
+
+- **Plan: numbering check.** The episode title in a file name is compared with the source's title for the
+  planned number and with the other planned episodes. Titles that fit another episode clearly better are
+  listed (`TitleMismatches`); when they are a third or more of the titled files, the plan has a
+  `numbering-mismatch` conflict. Found on Paw Patrol: Sonarr had numbered the files in TVDB order, the plan
+  used TMDb, and files were renamed with the titles of other episodes
+  (`S01E25 - Pups Save a Goodway` became `S01E25 - Pups Turn On the Lights`).
+- **Duplicates**: a double file (`S10E25-E26`) makes single copies of its episodes (`S10E25`, `S10E26`)
+  duplicates, in proposals and as a `duplicate-episode` conflict; before, only copies starting at the same
+  number were compared.
+
 ## 0.4.4.0
 
 - **Organize list**: a folder that an earlier organize run moved files out of, and that still holds videos
