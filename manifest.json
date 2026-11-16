@@ -6,6 +6,8 @@
     "overview": "Link tracks from sub folders, fix episode numbers of release names, organize releases",
     "owner": "hametovbr",
     "category": "Library",
+    "image": "thumb.png",
+    "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png",
     "versions": [
       {
         "version": "0.4.1.0",
@@ -14,9 +16,39 @@
         "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.1/outer-files_0.4.1.0.zip",
         "checksum": "526edd2176422a5d384460a51683af45",
         "timestamp": "2026-11-16T11:22:20Z"
+      },
+      {
+        "version": "0.4.0.0",
+        "changelog": "0.4.0: organize can number episodes by the titles in their file names (releases that count episodes their own way, specials mixed into the run), matched against all episodes and specials of the series.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.0/outer-files_0.4.0.0.zip",
+        "checksum": "96fbc33e07ac7eec34bc7bb7ff4202c0",
+        "timestamp": "2026-11-16T10:17:07Z"
+      },
+      {
+        "version": "0.3.1.0",
+        "changelog": "0.3.1: organize keeps the duplicate copy that has dubs and subtitles; series metadata of a wrong Jellyfin match no longer follows the release; status lists episodes whose number contradicts SxxEyy in the file name.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.3.1/outer-files_0.3.1.0.zip",
+        "checksum": "20994689dbd04a0487d34fd5bdc04fd9",
+        "timestamp": "2026-11-16T09:39:11Z"
+      },
+      {
+        "version": "0.3.0.0",
+        "changelog": "0.3.0: optional collection of release fonts as Jellyfin fallback fonts; episode re-numbering aware of local nfo files, clears numbers the rules cannot replace; organize normalizes names of adjacent tracks, keeps one copy of duplicate fonts, guesses readable titles; undo keeps folders Jellyfin saved metadata into and can be retried.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.3.0/outer-files_0.3.0.0.zip",
+        "checksum": "49ce2fa84cb9922cfa7e1f9be277123b",
+        "timestamp": "2026-11-16T06:52:29Z"
+      },
+      {
+        "version": "0.2.0.0",
+        "changelog": "0.2.0: ground-up rewrite. Link mode via symlinks in Jellyfin's per-item metadata folder (the 0.1.x approach of writing SubtitleFiles was overwritten by every probe); episode naming rules with a self-test; organize mode with plan, journal and undo; settings and organize pages.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.2.0/outer-files_0.2.0.0.zip",
+        "checksum": "b566413cf043f5d0556c6eb0585f178a",
+        "timestamp": "2026-11-16T06:51:18Z"
       }
-    ],
-    "image": "thumb.png",
-    "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png"
+    ]
   }
 ]
