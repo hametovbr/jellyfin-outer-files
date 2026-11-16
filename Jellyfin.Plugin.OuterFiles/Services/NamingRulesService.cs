@@ -88,7 +88,7 @@ public sealed class NamingRulesService
     /// </summary>
     /// <param name="episodes">Episodes with their stored numbers.</param>
     /// <returns>Episodes to re-number.</returns>
-    public IReadOnlyList<Renumbering> FindMisnumbered(IEnumerable<(Guid Id, string Path, int? Season, int? Episode)> episodes)
+    public IReadOnlyList<Renumbering> FindMisnumbered(IEnumerable<Host.EpisodeRef> episodes)
     {
         ArgumentNullException.ThrowIfNull(episodes);
         EpisodeExpression[] original;
@@ -105,21 +105,25 @@ public sealed class NamingRulesService
         var before = new EpisodeResolver(new NamingOptions { EpisodeExpressions = original });
         var after = new EpisodeResolver(_options);
         var result = new List<Renumbering>();
-        foreach (var (id, path, season, episode) in episodes)
+        foreach (var e in episodes)
         {
-            var old = before.Resolve(path, false, null, null, null);
-            var now = after.Resolve(path, false, null, null, null);
+            var old = before.Resolve(e.Path, false, null, null, null);
+            var now = after.Resolve(e.Path, false, null, null, null);
             if (old?.EpisodeNumber == now?.EpisodeNumber && old?.SeasonNumber == now?.SeasonNumber)
             {
                 continue;
             }
 
-            // Stored values still equal the broken parse: nobody fixed them by hand. When the rules find no
-            // number at all, Jellyfin keeps the stored one anyway, so only real corrections are returned.
-            if (now?.EpisodeNumber is not null && episode == old?.EpisodeNumber && (season == old?.SeasonNumber || old?.SeasonNumber is null))
+            // Stored values still equal the broken parse: nobody fixed them by hand.
+            if (old?.EpisodeNumber is null || e.Episode != old.EpisodeNumber || (e.Season != old.SeasonNumber && old.SeasonNumber is not null))
             {
-                result.Add(new Renumbering(id, path, season, episode, now?.SeasonNumber, now?.EpisodeNumber));
+                continue;
             }
+
+            var action = e.NfoOverridesPath
+                ? RenumberAction.BlockedByNfo
+                : now?.EpisodeNumber is null ? RenumberAction.Clear : RenumberAction.Refresh;
+            result.Add(new Renumbering(e.Id, e.Path, e.Season, e.Episode, now?.SeasonNumber, now?.EpisodeNumber, action, old.SeasonNumber is not null && now?.SeasonNumber is null));
         }
 
         return result;
@@ -189,4 +193,21 @@ public sealed record NamingRulesState(bool Installed, string Message, int Expres
 /// <param name="OldEpisode">Stored episode.</param>
 /// <param name="NewSeason">Season with the rules.</param>
 /// <param name="NewEpisode">Episode with the rules.</param>
-public sealed record Renumbering(Guid Id, string Path, int? OldSeason, int? OldEpisode, int? NewSeason, int? NewEpisode);
+/// <param name="Action">What to do.</param>
+/// <param name="ClearSeason">The season number also came from the broken parse and goes away.</param>
+public sealed record Renumbering(Guid Id, string Path, int? OldSeason, int? OldEpisode, int? NewSeason, int? NewEpisode, RenumberAction Action, bool ClearSeason);
+
+/// <summary>
+/// How a wrongly numbered episode is fixed.
+/// </summary>
+public enum RenumberAction
+{
+    /// <summary>Replace-all refresh: Jellyfin re-reads the numbers from the path with the rules.</summary>
+    Refresh,
+
+    /// <summary>The rules find no number: the wrong one is cleared.</summary>
+    Clear,
+
+    /// <summary>A local .nfo would put the wrong number back and the library does not rewrite nfo files: left alone and reported.</summary>
+    BlockedByNfo,
+}

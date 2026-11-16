@@ -21,7 +21,9 @@ internal sealed class FakeLibrary(string metadataRoot, IReadOnlyList<string> lib
 
     public VideoRef? Video(Guid id) => videos.FirstOrDefault(v => v.Id == id);
 
-    public IReadOnlyList<(Guid Id, string Path, int? Season, int? Episode)> Episodes() => [];
+    public IReadOnlyList<EpisodeRef> Episodes() => [];
+
+    public Task ClearEpisodeNumbersAsync(Guid id, bool clearSeason, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public IReadOnlyList<ReleaseRef> Releases() => releases ?? [];
 

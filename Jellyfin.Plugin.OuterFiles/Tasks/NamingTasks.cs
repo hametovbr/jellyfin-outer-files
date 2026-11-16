@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.OuterFiles.Configuration;
 using Jellyfin.Plugin.OuterFiles.Host;
+using Jellyfin.Plugin.OuterFiles.IO;
 using Jellyfin.Plugin.OuterFiles.Services;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
@@ -55,6 +57,10 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
     private readonly ILibrarySource _library;
     private readonly IRefresher _refresh;
     private readonly ILogger<NamingPostScanTask> _logger;
+    private readonly ReportStore _reports;
+
+    // Each episode is handled once per server run, so an unexpected outcome can never turn into a refresh on every scan.
+    private readonly HashSet<Guid> _attempted = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NamingPostScanTask"/> class.
@@ -62,9 +68,11 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
     /// <param name="naming">Naming rules service.</param>
     /// <param name="library">Library source.</param>
     /// <param name="refresh">Refresh queue.</param>
+    /// <param name="reports">Report store.</param>
     /// <param name="logger">Logger.</param>
-    public NamingPostScanTask(NamingRulesService naming, ILibrarySource library, IRefresher refresh, ILogger<NamingPostScanTask> logger)
+    public NamingPostScanTask(NamingRulesService naming, ILibrarySource library, IRefresher refresh, ReportStore reports, ILogger<NamingPostScanTask> logger)
     {
+        _reports = reports;
         _naming = naming;
         _library = library;
         _refresh = refresh;
@@ -72,28 +80,51 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
     }
 
     /// <inheritdoc />
-    public Task Run(IProgress<double> progress, CancellationToken cancellationToken)
+    public async Task Run(IProgress<double> progress, CancellationToken cancellationToken)
     {
         if (!_naming.State.Installed)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var fixes = _naming.FindMisnumbered(_library.Episodes());
-        foreach (var fix in fixes)
+        var refreshed = 0;
+        var cleared = 0;
+        foreach (var fix in fixes.Where(f => f.Action != RenumberAction.BlockedByNfo && _attempted.Add(f.Id)))
         {
-            _refresh.QueueReplaceAll(fix.Id);
+            if (fix.Action == RenumberAction.Refresh)
+            {
+                _refresh.QueueReplaceAll(fix.Id);
+                refreshed++;
+            }
+            else
+            {
+                await _library.ClearEpisodeNumbersAsync(fix.Id, fix.ClearSeason, cancellationToken).ConfigureAwait(false);
+                cleared++;
+            }
         }
 
-        if (fixes.Count > 0)
+        var blocked = fixes.Where(f => f.Action == RenumberAction.BlockedByNfo).ToList();
+        _reports.Save("naming", new RenumberReport(DateTime.UtcNow, refreshed, cleared, blocked.Count, blocked.Take(100).Select(f => f.Path).ToList()));
+        if (refreshed + cleared + blocked.Count > 0)
         {
             _logger.LogInformation(
-                "Outer Files: re-numbering {Count} episodes, e.g. {Example}",
-                fixes.Count,
-                string.Join(", ", fixes.Take(3).Select(f => $"{System.IO.Path.GetFileName(f.Path)}: S{f.OldSeason}E{f.OldEpisode} -> S{f.NewSeason}E{f.NewEpisode}")));
+                "Outer Files: episode numbers: {Refreshed} re-read, {Cleared} cleared, {Blocked} kept by their .nfo file",
+                refreshed,
+                cleared,
+                blocked.Count);
         }
 
         progress.Report(100);
-        return Task.CompletedTask;
     }
 }
+
+/// <summary>
+/// Result of the last re-numbering pass.
+/// </summary>
+/// <param name="Utc">When.</param>
+/// <param name="Refreshed">Episodes queued for a replace-all refresh.</param>
+/// <param name="Cleared">Episodes whose wrong number was cleared.</param>
+/// <param name="BlockedByNfo">Episodes whose wrong number a local .nfo keeps (organize the release, or delete the nfo).</param>
+/// <param name="BlockedSample">Up to 100 of them.</param>
+public sealed record RenumberReport(DateTime Utc, int Refreshed, int Cleared, int BlockedByNfo, IReadOnlyList<string> BlockedSample);

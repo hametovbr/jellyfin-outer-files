@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 
 namespace Jellyfin.Plugin.OuterFiles.Host;
@@ -21,6 +24,17 @@ namespace Jellyfin.Plugin.OuterFiles.Host;
 /// <param name="InternalMetadataPath">The item's internal metadata folder.</param>
 /// <param name="Kind">episode, movie or video.</param>
 public sealed record VideoRef(Guid Id, string Path, string ReleaseRoot, string InternalMetadataPath, string Kind);
+
+/// <summary>
+/// An episode with its stored numbers.
+/// </summary>
+/// <param name="Id">Item id.</param>
+/// <param name="Path">Path.</param>
+/// <param name="Season">Stored season.</param>
+/// <param name="Episode">Stored episode.</param>
+/// <param name="NfoOverridesPath">A local <c>.nfo</c> sits next to the video and the library does not save
+/// metadata: Jellyfin would read the numbers from that nfo on every refresh, not from the path.</param>
+public sealed record EpisodeRef(Guid Id, string Path, int? Season, int? Episode, bool NfoOverridesPath);
 
 /// <summary>
 /// A series or movie folder as organize mode needs it.
@@ -67,7 +81,14 @@ public interface ILibrarySource
 
     /// <summary>Gets every file-based episode with its stored numbers.</summary>
     /// <returns>Episodes.</returns>
-    IReadOnlyList<(Guid Id, string Path, int? Season, int? Episode)> Episodes();
+    IReadOnlyList<EpisodeRef> Episodes();
+
+    /// <summary>Clears the stored season/episode numbers of an episode (a metadata edit).</summary>
+    /// <param name="id">Item id.</param>
+    /// <param name="clearSeason">Also clear the season number.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task.</returns>
+    Task ClearEpisodeNumbersAsync(Guid id, bool clearSeason, CancellationToken cancellationToken);
 
     /// <summary>Gets every series and movie folder (not the library folders themselves).</summary>
     /// <returns>Releases.</returns>
@@ -84,16 +105,19 @@ public sealed class LibraryGateway : ILibrarySource
 {
     private readonly ILibraryManager _libraryManager;
     private readonly IServerApplicationPaths _paths;
+    private readonly IProviderManager _providerManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryGateway"/> class.
     /// </summary>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="paths">Server paths.</param>
-    public LibraryGateway(ILibraryManager libraryManager, IServerApplicationPaths paths)
+    /// <param name="providerManager">Provider manager.</param>
+    public LibraryGateway(ILibraryManager libraryManager, IServerApplicationPaths paths, IProviderManager providerManager)
     {
         _libraryManager = libraryManager;
         _paths = paths;
+        _providerManager = providerManager;
     }
 
     /// <summary>
@@ -137,12 +161,52 @@ public sealed class LibraryGateway : ILibrarySource
     public VideoRef? Video(Guid id) => ToRef(_libraryManager.GetItemById(id));
 
     /// <inheritdoc />
-    public IReadOnlyList<(Guid Id, string Path, int? Season, int? Episode)> Episodes() => _libraryManager
-        .GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Episode], IsVirtualItem = false, Recursive = true })
-        .OfType<Episode>()
-        .Where(e => e.IsFileProtocol && !string.IsNullOrEmpty(e.Path))
-        .Select(e => (e.Id, e.Path, e.ParentIndexNumber, e.IndexNumber))
-        .ToList();
+    public IReadOnlyList<EpisodeRef> Episodes()
+    {
+        var savingByLibrary = new Dictionary<Guid, bool>();
+        return _libraryManager
+            .GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Episode], IsVirtualItem = false, Recursive = true })
+            .OfType<Episode>()
+            .Where(e => e.IsFileProtocol && !string.IsNullOrEmpty(e.Path))
+            .Select(e =>
+            {
+                var nfo = System.IO.Path.ChangeExtension(e.Path, ".nfo");
+                var overrides = System.IO.File.Exists(nfo) && !Saves(e, savingByLibrary);
+                return new EpisodeRef(e.Id, e.Path, e.ParentIndexNumber, e.IndexNumber, overrides);
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task ClearEpisodeNumbersAsync(Guid id, bool clearSeason, CancellationToken cancellationToken)
+    {
+        if (_libraryManager.GetItemById(id) is not Episode episode)
+        {
+            return;
+        }
+
+        episode.IndexNumber = null;
+        episode.IndexNumberEnd = null;
+        if (clearSeason)
+        {
+            episode.ParentIndexNumber = null;
+        }
+
+        await episode.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
+    }
+
+    // With a metadata saver enabled, a replace-all refresh skips local nfo files and rewrites them.
+    private bool Saves(Episode episode, Dictionary<Guid, bool> cache)
+    {
+        var key = episode.SeriesId;
+        if (!cache.TryGetValue(key, out var saves))
+        {
+            saves = _providerManager.GetMetadataSavers(episode, _libraryManager.GetLibraryOptions(episode)).Any();
+            cache[key] = saves;
+        }
+
+        return saves;
+    }
 
     /// <inheritdoc />
     public IReadOnlyList<ReleaseRef> Releases()

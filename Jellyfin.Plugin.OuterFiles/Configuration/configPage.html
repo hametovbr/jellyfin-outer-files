@@ -70,6 +70,13 @@
                     var n = s.NamingRules || {};
                     var html = '<div><strong>Episode recognition:</strong> ' + esc(n.Message || '') + '</div>';
                     if (n.Failures && n.Failures.length) { html += '<ul>' + n.Failures.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>'; }
+                    var rn = s.LastRenumbering;
+                    if (rn && (rn.Refreshed || rn.Cleared || rn.BlockedByNfo)) {
+                        html += '<div><strong>Episode numbers:</strong> ' + rn.Refreshed + ' re-read, ' + rn.Cleared + ' cleared, ' + rn.BlockedByNfo + ' kept by their .nfo file</div>';
+                        if (rn.BlockedByNfo) {
+                            html += '<details><summary>Kept by .nfo (organize these releases, or delete the .nfo files)</summary><ul>' + rn.BlockedSample.map(function (p) { return '<li><code>' + esc(p) + '</code></li>'; }).join('') + '</ul></details>';
+                        }
+                    }
                     if (s.Running) { html += '<div><strong>Running:</strong> ' + esc(s.Running) + '</div>'; }
                     page.querySelector('#OfStatus').innerHTML = html;
                     var r = s.LastLinkRun;
