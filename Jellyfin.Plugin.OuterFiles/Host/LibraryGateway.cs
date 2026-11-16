@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.OuterFiles.Domain.Organize;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -33,7 +34,7 @@ public sealed record VideoRef(Guid Id, string Path, string ReleaseRoot, string I
 /// <param name="Season">Stored season.</param>
 /// <param name="Episode">Stored episode.</param>
 /// <param name="NfoOverridesPath">A local <c>.nfo</c> sits next to the video and the library does not save
-/// metadata: Jellyfin would read the numbers from that nfo on every refresh, not from the path.</param>
+/// metadata into media folders: Jellyfin reads the numbers from that nfo again whenever the video changes.</param>
 public sealed record EpisodeRef(Guid Id, string Path, int? Season, int? Episode, bool NfoOverridesPath);
 
 /// <summary>
@@ -195,13 +196,17 @@ public sealed class LibraryGateway : ILibrarySource
         await episode.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
     }
 
-    // With a metadata saver enabled, a replace-all refresh skips local nfo files and rewrites them.
+    // Whether a refresh writes the nfo back. GetMetadataSavers answers for a manual edit, where an existing nfo
+    // counts as enabled even with local saving off (ProviderManager.IsSaverEnabledForItem); after a refresh the
+    // nfo is written only when the library saves local metadata or names its savers explicitly.
     private bool Saves(Episode episode, Dictionary<Guid, bool> cache)
     {
         var key = episode.SeriesId;
         if (!cache.TryGetValue(key, out var saves))
         {
-            saves = _providerManager.GetMetadataSavers(episode, _libraryManager.GetLibraryOptions(episode)).Any();
+            var options = _libraryManager.GetLibraryOptions(episode);
+            saves = (options.MetadataSavers is not null || options.SaveLocalMetadata)
+                && _providerManager.GetMetadataSavers(episode, options).Any();
             cache[key] = saves;
         }
 
@@ -231,7 +236,11 @@ public sealed class LibraryGateway : ILibrarySource
             var first = group.First();
             BaseItem owner = first is Episode e && e.Series is not null ? e.Series : first;
             var videos = group.Select(v => new ReleaseVideo(v.Id, v.Path, v.ParentIndexNumber, v.IndexNumber, v.Height > 0 ? v.Height : null)).ToList();
-            result.Add(new ReleaseRef(group.Key, library, first is Movie, owner.Name ?? System.IO.Path.GetFileName(group.Key), owner.ProductionYear, new Dictionary<string, string>(owner.ProviderIds ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase), videos));
+            var folderName = System.IO.Path.GetFileName(group.Key);
+            var title = owner.Name is null || owner.Name == folderName || owner.Name == System.IO.Path.GetFileNameWithoutExtension(first.Path)
+                ? ReleaseNameParser.GuessTitle(owner.Name ?? folderName)
+                : owner.Name;
+            result.Add(new ReleaseRef(group.Key, library, first is Movie, title, owner.ProductionYear, new Dictionary<string, string>(owner.ProviderIds ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase), videos));
         }
 
         return result.OrderBy(r => r.Root, StringComparer.Ordinal).ToList();

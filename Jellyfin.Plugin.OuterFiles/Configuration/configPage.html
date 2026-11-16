@@ -76,10 +76,10 @@
                     var html = '<div><strong>Episode recognition:</strong> ' + esc(n.Message || '') + '</div>';
                     if (n.Failures && n.Failures.length) { html += '<ul>' + n.Failures.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>'; }
                     var rn = s.LastRenumbering;
-                    if (rn && (rn.Refreshed || rn.Cleared || rn.BlockedByNfo)) {
-                        html += '<div><strong>Episode numbers:</strong> ' + rn.Refreshed + ' re-read, ' + rn.Cleared + ' cleared, ' + rn.BlockedByNfo + ' kept by their .nfo file</div>';
-                        if (rn.BlockedByNfo) {
-                            html += '<details><summary>Kept by .nfo (organize these releases, or delete the .nfo files)</summary><ul>' + rn.BlockedSample.map(function (p) { return '<li><code>' + esc(p) + '</code></li>'; }).join('') + '</ul></details>';
+                    if (rn && (rn.Refreshed || rn.Cleared || rn.StaleNfo)) {
+                        html += '<div><strong>Episode numbers:</strong> ' + rn.Refreshed + ' re-read, ' + rn.Cleared + ' cleared, ' + rn.StaleNfo + ' with a stale .nfo file</div>';
+                        if (rn.StaleNfo) {
+                            html += '<details><summary>Stale .nfo files: fixed for now, but the old number comes back when the video changes. Enable saving metadata into media folders for the library, organize these releases, or delete the .nfo files</summary><ul>' + rn.StaleNfoSample.map(function (p) { return '<li><code>' + esc(p) + '</code></li>'; }).join('') + '</ul></details>';
                         }
                     }
                     if (s.Running) { html += '<div><strong>Running:</strong> ' + esc(s.Running) + '</div>'; }

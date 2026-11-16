@@ -90,9 +90,11 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
         var fixes = _naming.FindMisnumbered(_library.Episodes());
         var refreshed = 0;
         var cleared = 0;
-        foreach (var fix in fixes.Where(f => f.Action != RenumberAction.BlockedByNfo && _attempted.Add(f.Id)))
+        foreach (var fix in fixes.Where(f => _attempted.Add(f.Id)))
         {
-            if (fix.Action == RenumberAction.Refresh)
+            // A stale nfo is skipped by a replace-all refresh (Jellyfin counts an existing nfo as a saver), so the
+            // library shows the right number until the video file changes and the nfo is read again; reported below.
+            if (fix.Action is RenumberAction.Refresh or RenumberAction.StaleNfo)
             {
                 _refresh.QueueReplaceAll(fix.Id);
                 refreshed++;
@@ -104,12 +106,12 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
             }
         }
 
-        var blocked = fixes.Where(f => f.Action == RenumberAction.BlockedByNfo).ToList();
+        var blocked = fixes.Where(f => f.Action == RenumberAction.StaleNfo).ToList();
         _reports.Save("naming", new RenumberReport(DateTime.UtcNow, refreshed, cleared, blocked.Count, blocked.Take(100).Select(f => f.Path).ToList()));
         if (refreshed + cleared + blocked.Count > 0)
         {
             _logger.LogInformation(
-                "Outer Files: episode numbers: {Refreshed} re-read, {Cleared} cleared, {Blocked} kept by their .nfo file",
+                "Outer Files: episode numbers: {Refreshed} re-read, {Cleared} cleared, {Blocked} with a stale .nfo file",
                 refreshed,
                 cleared,
                 blocked.Count);
@@ -125,6 +127,6 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
 /// <param name="Utc">When.</param>
 /// <param name="Refreshed">Episodes queued for a replace-all refresh.</param>
 /// <param name="Cleared">Episodes whose wrong number was cleared.</param>
-/// <param name="BlockedByNfo">Episodes whose wrong number a local .nfo keeps (organize the release, or delete the nfo).</param>
-/// <param name="BlockedSample">Up to 100 of them.</param>
-public sealed record RenumberReport(DateTime Utc, int Refreshed, int Cleared, int BlockedByNfo, IReadOnlyList<string> BlockedSample);
+/// <param name="StaleNfo">Episodes fixed in the library whose local .nfo still holds the wrong number and brings it back when the video changes (enable "Save artwork and metadata into media folders", organize the release, or delete the nfo).</param>
+/// <param name="StaleNfoSample">Up to 100 of them.</param>
+public sealed record RenumberReport(DateTime Utc, int Refreshed, int Cleared, int StaleNfo, IReadOnlyList<string> StaleNfoSample);

@@ -56,6 +56,7 @@ public sealed class NamingRulesTests
         var unnumbered = Guid.NewGuid();
         var keptByNfo = Guid.NewGuid();
         var fine = Guid.NewGuid();
+        var alreadyRight = Guid.NewGuid();
         var fixes = service.FindMisnumbered(
         [
             new EpisodeRef(broken, NamingRules.SelfTest[0].Path, null, 2023, false),
@@ -64,12 +65,13 @@ public sealed class NamingRulesTests
             new EpisodeRef(keptByNfo, NamingRules.SelfTest[1].Path.Replace("_07_", "_08_", StringComparison.Ordinal), null, null, true),
             new EpisodeRef(keptByNfo, NamingRules.SelfTest[0].Path.Replace("[07]", "[08]", StringComparison.Ordinal), null, 2023, true),
             new EpisodeRef(fine, NamingRules.SelfTest[6].Path, 1, 9, false),
+            new EpisodeRef(alreadyRight, "/tv/Show/Show [TV-2] [2021]/Show TV-2 - 02 (WEB-DL).mkv", 2, 2, false),
         ]).ToDictionary(f => f.Id);
 
         Assert.Equal(3, fixes.Count);
         Assert.Equal((RenumberAction.Refresh, (int?)7), (fixes[broken].Action, fixes[broken].NewEpisode));
         Assert.Equal((RenumberAction.Clear, true), (fixes[unnumbered].Action, fixes[unnumbered].ClearSeason));
-        Assert.Equal(RenumberAction.BlockedByNfo, fixes[keptByNfo].Action);
+        Assert.Equal(RenumberAction.StaleNfo, fixes[keptByNfo].Action);
     }
 
     /// <summary>

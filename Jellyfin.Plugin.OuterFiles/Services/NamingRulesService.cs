@@ -114,6 +114,12 @@ public sealed class NamingRulesService
                 continue;
             }
 
+            // Already right (e.g. "TV-2 - 02": the broken parse and the fix share the episode number).
+            if (now?.EpisodeNumber is not null && e.Episode == now.EpisodeNumber && (now.SeasonNumber is null || e.Season == now.SeasonNumber))
+            {
+                continue;
+            }
+
             // Stored values still equal the broken parse: nobody fixed them by hand.
             if (old?.EpisodeNumber is null || e.Episode != old.EpisodeNumber || (e.Season != old.SeasonNumber && old.SeasonNumber is not null))
             {
@@ -121,7 +127,7 @@ public sealed class NamingRulesService
             }
 
             var action = e.NfoOverridesPath
-                ? RenumberAction.BlockedByNfo
+                ? RenumberAction.StaleNfo
                 : now?.EpisodeNumber is null ? RenumberAction.Clear : RenumberAction.Refresh;
             result.Add(new Renumbering(e.Id, e.Path, e.Season, e.Episode, now?.SeasonNumber, now?.EpisodeNumber, action, old.SeasonNumber is not null && now?.SeasonNumber is null));
         }
@@ -208,6 +214,6 @@ public enum RenumberAction
     /// <summary>The rules find no number: the wrong one is cleared.</summary>
     Clear,
 
-    /// <summary>A local .nfo would put the wrong number back and the library does not rewrite nfo files: left alone and reported.</summary>
-    BlockedByNfo,
+    /// <summary>Refreshed like <see cref="Refresh"/>, but a local .nfo the library does not rewrite still holds the wrong number and brings it back when the video changes: reported.</summary>
+    StaleNfo,
 }
