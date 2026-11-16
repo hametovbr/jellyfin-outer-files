@@ -151,6 +151,26 @@ public sealed class OrganizeTests
     private static (RowAction, int?, int?) Key(RowDecision r) => (r.Action, r.Season, r.Episode);
 
     [Fact]
+    public void EpisodeSourceChoiceMovesWithTheReleaseEvenWhenReidentified()
+    {
+        const string root = "/lib/K-ON!";
+        string[] files = [root + "/Season 1/K-ON! - S01E01.mkv", root + "/tvshow.nfo", root + "/" + EpisodeSources.FileName];
+        var inv = Inventory.Build(root, files);
+        Assert.Contains(inv.FolderMeta, f => f.EndsWith(EpisodeSources.FileName, StringComparison.Ordinal));
+        Assert.DoesNotContain(inv.Leftovers, f => f.EndsWith(EpisodeSources.FileName, StringComparison.Ordinal));
+
+        var ctx = new RenameContext(inv, new Identity(false, "K-ON!", 2009, Reidentified: true), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Season 1" });
+
+        var plan = RenamePlanner.Build(ctx, EpisodeMapper.Propose(inv, null, new Dictionary<string, int>()));
+
+        // The choice file follows the release (as "meta"), while tvshow.nfo of the wrong match goes to the trash.
+        Assert.Contains(plan.Moves, m => m.What == "meta" && m.To == "/lib/K-ON! (2009)/" + EpisodeSources.FileName);
+        Assert.Contains(plan.Moves, m => m.What == "trash" && m.From.EndsWith("tvshow.nfo", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void EditedRowsThatPutTwoCopiesOnOneEpisodeAreAConflict()
     {
         const string root = "/lib/Show";

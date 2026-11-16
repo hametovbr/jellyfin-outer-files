@@ -23,6 +23,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<PlanExecutor>();
         serviceCollection.AddSingleton<OperationGate>();
         serviceCollection.AddSingleton<FileSystemReader>();
+        serviceCollection.AddSingleton<EpisodeSourceStore>();
         serviceCollection.AddSingleton<ILibrarySource, LibraryGateway>();
         serviceCollection.AddSingleton<IRefresher, RefreshGateway>();
         serviceCollection.AddSingleton<FallbackFonts>();
@@ -35,6 +36,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             sp.GetRequiredService<ILibrarySource>(),
             sp.GetRequiredService<IMetadataSource>(),
             sp.GetRequiredService<FileSystemReader>(),
+            sp.GetRequiredService<EpisodeSourceStore>(),
             DataFolder(sp, "export"),
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ExportService>>()));
         serviceCollection.AddSingleton<IScheduledTask, ExportScheduledTask>();

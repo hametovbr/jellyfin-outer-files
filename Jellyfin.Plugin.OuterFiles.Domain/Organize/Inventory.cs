@@ -32,7 +32,8 @@ public sealed record InventoryVideo(string Path, string Relative, IReadOnlyList<
 /// </summary>
 /// <param name="Root">Release root.</param>
 /// <param name="Videos">Videos with their sidecars and outer tracks.</param>
-/// <param name="FolderMeta">Artwork and nfo files that describe a folder (tvshow.nfo, poster.jpg, season.nfo …).</param>
+/// <param name="FolderMeta">Artwork and nfo files that describe a folder (tvshow.nfo, poster.jpg, season.nfo …) and the
+/// release's episode source choice (<see cref="EpisodeSources.FileName"/>).</param>
 /// <param name="Fonts">Files inside font folders.</param>
 /// <param name="UnmatchedTracks">Tracks no video claims.</param>
 /// <param name="Leftovers">Everything else (scans, text files, unknown).</param>
@@ -99,7 +100,8 @@ public sealed partial record Inventory(string Root, IReadOnlyList<InventoryVideo
             {
                 fonts.Add(f);
             }
-            else if (FolderMetaRegex().IsMatch(System.IO.Path.GetFileName(f)))
+            else if (FolderMetaRegex().IsMatch(System.IO.Path.GetFileName(f))
+                || (System.IO.Path.GetFileName(f) == EpisodeSources.FileName && System.IO.Path.GetDirectoryName(f) == root))
             {
                 folderMeta.Add(f);
             }

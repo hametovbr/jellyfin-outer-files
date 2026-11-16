@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
+using Jellyfin.Plugin.OuterFiles.Domain.Organize;
+using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Providers;
 
 namespace Jellyfin.Plugin.OuterFiles.Host;
@@ -41,9 +43,14 @@ public interface IMetadataSource
     /// <param name="season">Season.</param>
     /// <param name="episode">Episode.</param>
     /// <param name="language">Metadata language.</param>
+    /// <param name="provider">Only ask this provider (null: every enabled provider, first answer wins).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Title or null.</returns>
-    Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, CancellationToken cancellationToken);
+    /// <returns>Title or null; placeholders such as <c>Episode #4.1</c> count as null.</returns>
+    Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, string? provider, CancellationToken cancellationToken);
+
+    /// <summary>Lists the installed providers that can return episode lists.</summary>
+    /// <returns>Provider names.</returns>
+    IReadOnlyList<string> EpisodeProviders() => [];
 
     /// <summary>
     /// Names the provider that answered the episode lookups for these series ids, when known.
@@ -55,7 +62,9 @@ public interface IMetadataSource
 
 /// <summary>
 /// Asks Jellyfin's installed metadata providers (TMDB is built in; TVDB/AniDB plugins add theirs) through
-/// <see cref="IProviderManager"/>, with a cache for episode titles.
+/// <see cref="IProviderManager"/>, with a cache for episode titles. Episode lookups are pinned to one provider
+/// per release (<see cref="EpisodeSources"/>): without that, the host asks every provider and the first answer
+/// wins, which mixes numberings of different sources in one list.
 /// </summary>
 public sealed class MetadataGateway : IMetadataSource
 {
@@ -93,9 +102,9 @@ public sealed class MetadataGateway : IMetadataSource
     }
 
     /// <inheritdoc />
-    public async Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, CancellationToken cancellationToken)
+    public async Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, string? provider, CancellationToken cancellationToken)
     {
-        var key = string.Join(',', seriesIds.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Key + "=" + k.Value)) + $"|{season}|{episode}|{language}";
+        var key = IdsKey(seriesIds) + $"|{season}|{episode}|{language}|{provider}";
         if (_titles.TryGetValue(key, out var cached))
         {
             return cached;
@@ -111,15 +120,19 @@ public sealed class MetadataGateway : IMetadataSource
                     IndexNumber = episode,
                     MetadataLanguage = language,
                 },
+                SearchProviderName = provider,
+
+                // A provider the user picked for a release answers even when it is not enabled for the library.
+                IncludeDisabledProviders = provider is not null,
             },
             cancellationToken).ConfigureAwait(false);
 
-        var hit = results.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name));
+        var hit = results.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name) && !EpisodeSources.IsPlaceholder(r.Name));
         var title = hit?.Name;
         _titles[key] = title;
-        if (hit?.SearchProviderName is { } provider)
+        if (hit?.SearchProviderName is { } answered)
         {
-            _answeredBy[IdsKey(seriesIds)] = provider;
+            _answeredBy[IdsKey(seriesIds)] = answered;
         }
 
         return title;
@@ -127,6 +140,15 @@ public sealed class MetadataGateway : IMetadataSource
 
     /// <inheritdoc />
     public string? AnsweredBy(IReadOnlyDictionary<string, string> seriesIds) => _answeredBy.GetValueOrDefault(IdsKey(seriesIds));
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> EpisodeProviders() => _providers.GetAllMetadataPlugins()
+        .Where(s => s.ItemType == nameof(Episode))
+        .SelectMany(s => s.Plugins)
+        .Where(p => p.Type == MetadataPluginType.MetadataFetcher)
+        .Select(p => p.Name)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     private static string IdsKey(IReadOnlyDictionary<string, string> seriesIds)
         => string.Join(',', seriesIds.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Key + "=" + k.Value));

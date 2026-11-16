@@ -31,6 +31,7 @@ public sealed class OrganizeService
     private readonly ILibrarySource _library;
     private readonly IMetadataSource _metadata;
     private readonly FileSystemReader _reader;
+    private readonly EpisodeSourceStore _sources;
     private readonly PlanExecutor _executor;
     private readonly OperationGate _gate;
     private readonly NamingOptions _naming;
@@ -43,15 +44,17 @@ public sealed class OrganizeService
     /// <param name="library">Library source.</param>
     /// <param name="metadata">Metadata source.</param>
     /// <param name="reader">File system reader.</param>
+    /// <param name="sources">Episode source choices of the releases.</param>
     /// <param name="executor">Plan executor.</param>
     /// <param name="gate">Operation gate.</param>
     /// <param name="naming">The server's naming options (with the plugin's rules when installed).</param>
     /// <param name="logger">Logger.</param>
-    public OrganizeService(ILibrarySource library, IMetadataSource metadata, FileSystemReader reader, PlanExecutor executor, OperationGate gate, NamingOptions naming, ILogger<OrganizeService> logger)
+    public OrganizeService(ILibrarySource library, IMetadataSource metadata, FileSystemReader reader, EpisodeSourceStore sources, PlanExecutor executor, OperationGate gate, NamingOptions naming, ILogger<OrganizeService> logger)
     {
         _library = library;
         _metadata = metadata;
         _reader = reader;
+        _sources = sources;
         _executor = executor;
         _gate = gate;
         _naming = naming;
@@ -157,9 +160,11 @@ public sealed class OrganizeService
         var inventory = Inventory.Build(release.Root, _reader.Snapshot(release.Root));
         var heights = release.Videos.Where(v => v.Height is not null).ToDictionary(v => v.Path, v => v.Height!.Value, StringComparer.Ordinal);
         var decisions = release.IsMovie ? ProposeMovie(inventory, heights) : EpisodeMapper.Propose(inventory, null, heights);
-        var session = new Session(Guid.NewGuid().ToString("N"), release, inventory, heights);
+        var source = release.IsMovie ? null : _sources.Resolve(release.Root, release.ProviderIds);
+        var providers = release.IsMovie ? [] : _metadata.EpisodeProviders();
+        var session = new Session(Guid.NewGuid().ToString("N"), release, inventory, heights, source);
         Remember(session);
-        return session.View(decisions);
+        return session.View(decisions, null, source, providers);
     }
 
     /// <summary>
@@ -182,7 +187,7 @@ public sealed class OrganizeService
         for (var season = 1; season <= 60 && !cancellationToken.IsCancellationRequested; season++)
         {
             var count = 0;
-            while (count < 500 && await _metadata.EpisodeTitleAsync(seriesIds, season, count + 1, config.TitleLanguage, cancellationToken).ConfigureAwait(false) is not null)
+            while (count < 500 && await _metadata.EpisodeTitleAsync(seriesIds, season, count + 1, config.TitleLanguage, session.Source?.Provider, cancellationToken).ConfigureAwait(false) is not null)
             {
                 count++;
             }
@@ -229,7 +234,7 @@ public sealed class OrganizeService
             // Specials are numbered with gaps (S00E17, S00E19): stop after several misses in a row.
             for (int episode = 1, misses = 0; episode <= 200 && misses < 6 && !cancellationToken.IsCancellationRequested; episode++)
             {
-                var title = await _metadata.EpisodeTitleAsync(seriesIds, 0, episode, language, cancellationToken).ConfigureAwait(false);
+                var title = await _metadata.EpisodeTitleAsync(seriesIds, 0, episode, language, session.Source?.Provider, cancellationToken).ConfigureAwait(false);
                 misses = title is null ? misses + 1 : 0;
                 if (title is not null)
                 {
@@ -241,7 +246,7 @@ public sealed class OrganizeService
             for (var season = 1; season <= 60 && !cancellationToken.IsCancellationRequested; season++)
             {
                 var count = 0;
-                while (count < 500 && await _metadata.EpisodeTitleAsync(seriesIds, season, count + 1, language, cancellationToken).ConfigureAwait(false) is { } title)
+                while (count < 500 && await _metadata.EpisodeTitleAsync(seriesIds, season, count + 1, language, session.Source?.Provider, cancellationToken).ConfigureAwait(false) is { } title)
                 {
                     count++;
                     catalog.Add(new CatalogEpisode(season, count, title));
@@ -323,7 +328,7 @@ public sealed class OrganizeService
             foreach (var d in decisions.Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Episode is not null))
             {
                 var season = d.Action == RowAction.Special ? 0 : d.Season ?? 1;
-                var title = await _metadata.EpisodeTitleAsync(request.ProviderIds, season, d.Episode!.Value, config.TitleLanguage, cancellationToken).ConfigureAwait(false);
+                var title = await _metadata.EpisodeTitleAsync(request.ProviderIds, season, d.Episode!.Value, config.TitleLanguage, session.Source?.Provider, cancellationToken).ConfigureAwait(false);
                 if (title is null)
                 {
                     missingTitles.Add($"S{season:00}E{d.Episode:00}");
@@ -480,6 +485,18 @@ public sealed class OrganizeService
         return result!;
     }
 
+    /// <summary>
+    /// Stores the episode source choice of a release in its folder, or removes it for the default.
+    /// </summary>
+    /// <param name="root">Release folder.</param>
+    /// <param name="provider">Provider name, or null/empty for the default.</param>
+    /// <returns>Null on success, else the reason it was not done.</returns>
+    public string? SaveSource(string root, string? provider)
+    {
+        var release = _library.Releases().FirstOrDefault(r => string.Equals(r.Root, root.TrimEnd('/', '\\'), StringComparison.Ordinal));
+        return release is null ? "Not a known release folder." : _sources.Save(release.Root, provider);
+    }
+
     // True when an id of the same provider points to another entry (Jellyfin matched K-ON! as "K-Pop ON!").
     internal static bool Contradicts(IReadOnlyDictionary<string, string> known, IReadOnlyDictionary<string, string> chosen)
         => chosen.Any(c => known.Any(k => string.Equals(k.Key, c.Key, StringComparison.OrdinalIgnoreCase)
@@ -534,7 +551,7 @@ public sealed class OrganizeService
         _sessions[session.Id] = session;
     }
 
-    private sealed class Session(string id, ReleaseRef release, Inventory inventory, Dictionary<string, int> heights)
+    private sealed class Session(string id, ReleaseRef release, Inventory inventory, Dictionary<string, int> heights, EpisodeSource? source)
     {
         public string Id { get; } = id;
 
@@ -546,11 +563,13 @@ public sealed class OrganizeService
 
         public Dictionary<string, int> Heights { get; } = heights;
 
+        public EpisodeSource? Source { get; } = source;
+
         public RenamePlan? Plan { get; set; }
 
         public string? Library { get; set; }
 
-        public Analysis View(IReadOnlyList<RowDecision> decisions, IReadOnlyList<int>? seasonCounts = null)
+        public Analysis View(IReadOnlyList<RowDecision> decisions, IReadOnlyList<int>? seasonCounts = null, EpisodeSource? source = null, IReadOnlyList<string>? providers = null)
         {
             var stored = Release.Videos.ToDictionary(v => v.Path, StringComparer.Ordinal);
             var rows = Inventory.Videos.Zip(decisions).Select(x => new AnalysisRow(
@@ -575,7 +594,9 @@ public sealed class OrganizeService
                 rows,
                 Inventory.UnmatchedTracks.Select(f => Domain.Organize.Inventory.Relative(Release.Root, f)).ToList(),
                 Inventory.Leftovers.Select(f => Domain.Organize.Inventory.Relative(Release.Root, f)).ToList(),
-                seasonCounts ?? []);
+                seasonCounts ?? [],
+                source ?? Source,
+                providers ?? []);
         }
     }
 }
@@ -601,7 +622,9 @@ public sealed record Candidate(string Root, string Name, bool IsMovie, string Ti
 /// <param name="UnmatchedTracks">Tracks without a video.</param>
 /// <param name="Leftovers">Other files left in place.</param>
 /// <param name="SeasonCounts">Episodes per season used for absolute numbers.</param>
-public sealed record Analysis(string SessionId, string Root, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<AnalysisRow> Rows, IReadOnlyList<string> UnmatchedTracks, IReadOnlyList<string> Leftovers, IReadOnlyList<int> SeasonCounts);
+/// <param name="Source">Episode source of the release (provider and whether chosen or defaulted).</param>
+/// <param name="Providers">Installed providers that can return episode lists.</param>
+public sealed record Analysis(string SessionId, string Root, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<AnalysisRow> Rows, IReadOnlyList<string> UnmatchedTracks, IReadOnlyList<string> Leftovers, IReadOnlyList<int> SeasonCounts, EpisodeSource? Source = null, IReadOnlyList<string>? Providers = null);
 
 /// <summary>One video of an analysis.</summary>
 /// <param name="Relative">Path relative to the release folder.</param>

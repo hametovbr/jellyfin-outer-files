@@ -24,6 +24,7 @@ public sealed class ExportService
     private readonly ILibrarySource _library;
     private readonly IMetadataSource _metadata;
     private readonly FileSystemReader _reader;
+    private readonly EpisodeSourceStore _sources;
     private readonly ILogger<ExportService> _logger;
 
     /// <summary>
@@ -32,13 +33,15 @@ public sealed class ExportService
     /// <param name="library">Library.</param>
     /// <param name="metadata">Metadata source.</param>
     /// <param name="reader">File system reader.</param>
+    /// <param name="sources">Episode source choices of the releases.</param>
     /// <param name="folder">Folder the export is written to.</param>
     /// <param name="logger">Logger.</param>
-    public ExportService(ILibrarySource library, IMetadataSource metadata, FileSystemReader reader, string folder, ILogger<ExportService> logger)
+    public ExportService(ILibrarySource library, IMetadataSource metadata, FileSystemReader reader, EpisodeSourceStore sources, string folder, ILogger<ExportService> logger)
     {
         _library = library;
         _metadata = metadata;
         _reader = reader;
+        _sources = sources;
         _logger = logger;
         File = Path.Combine(folder, "export.json.gz");
     }
@@ -67,13 +70,15 @@ public sealed class ExportService
             cancellationToken.ThrowIfCancellationRequested();
             var release = releases[i];
             var files = _reader.Snapshot(release.Root).Select(f => Inventory.Relative(release.Root, f)).Order(StringComparer.Ordinal).ToList();
-            var key = string.Join(',', release.ProviderIds.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Key + "=" + k.Value));
+            var source = release.IsMovie ? null : _sources.Resolve(release.Root, release.ProviderIds);
+            var key = string.Join(',', release.ProviderIds.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Key + "=" + k.Value))
+                + "|" + (source?.Provider ?? "any");
             if (!release.IsMovie && release.ProviderIds.Count > 0 && !catalogs.ContainsKey(key))
             {
                 var list = new List<ExportedCatalog>();
                 foreach (var language in languages.Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    list.Add(await CatalogAsync("all ids", release.ProviderIds, language, cancellationToken).ConfigureAwait(false));
+                    list.Add(await CatalogAsync(source!, release.ProviderIds, language, cancellationToken).ConfigureAwait(false));
                 }
 
                 catalogs[key] = list;
@@ -89,7 +94,8 @@ public sealed class ExportService
                 release.Videos.Select(v => new ExportedVideo(Inventory.Relative(release.Root, v.Path), v.Season, v.Episode, v.Height)).ToList(),
                 files,
                 release.IsMovie ? null : key,
-                NfoSamples(release.Root, files)));
+                NfoSamples(release.Root, files),
+                source));
             progress?.Report(100.0 * (i + 1) / Math.Max(1, releases.Count));
         }
 
@@ -129,7 +135,7 @@ public sealed class ExportService
         return samples;
     }
 
-    private async Task<ExportedCatalog> CatalogAsync(string ids, IReadOnlyDictionary<string, string> seriesIds, string language, CancellationToken cancellationToken)
+    private async Task<ExportedCatalog> CatalogAsync(EpisodeSource source, IReadOnlyDictionary<string, string> seriesIds, string language, CancellationToken cancellationToken)
     {
         var episodes = new List<CatalogEpisode>();
 
@@ -137,7 +143,7 @@ public sealed class ExportService
         for (int episode = 1, misses = 0; episode <= 300 && misses < 6; episode++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var title = await _metadata.EpisodeTitleAsync(seriesIds, 0, episode, language, cancellationToken).ConfigureAwait(false);
+            var title = await _metadata.EpisodeTitleAsync(seriesIds, 0, episode, language, source.Provider, cancellationToken).ConfigureAwait(false);
             misses = title is null ? misses + 1 : 0;
             if (title is not null)
             {
@@ -152,7 +158,7 @@ public sealed class ExportService
             for (int episode = 1, misses = 0; episode <= 1000 && misses < 2; episode++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var title = await _metadata.EpisodeTitleAsync(seriesIds, season, episode, language, cancellationToken).ConfigureAwait(false);
+                var title = await _metadata.EpisodeTitleAsync(seriesIds, season, episode, language, source.Provider, cancellationToken).ConfigureAwait(false);
                 misses = title is null ? misses + 1 : 0;
                 if (title is not null)
                 {
@@ -164,7 +170,7 @@ public sealed class ExportService
             empty = found == 0 ? empty + 1 : 0;
         }
 
-        return new ExportedCatalog(ids, language, _metadata.AnsweredBy(seriesIds), episodes);
+        return new ExportedCatalog(source.Origin, language, source.Provider ?? _metadata.AnsweredBy(seriesIds), episodes);
     }
 }
 
@@ -187,7 +193,8 @@ public sealed record Export(DateTime Utc, string PluginVersion, PluginConfigurat
 /// <param name="Files">Every file of the folder, relative.</param>
 /// <param name="CatalogKey">Key into the catalogs, for series.</param>
 /// <param name="NfoSamples">Content of up to two episode nfo files.</param>
-public sealed record ExportedRelease(string Root, string LibraryFolder, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<ExportedVideo> Videos, IReadOnlyList<string> Files, string? CatalogKey, IReadOnlyDictionary<string, string> NfoSamples);
+/// <param name="EpisodeSource">Provider the episode list is taken from and whether it was chosen or defaulted (series only).</param>
+public sealed record ExportedRelease(string Root, string LibraryFolder, bool IsMovie, string Title, int? Year, IReadOnlyDictionary<string, string> ProviderIds, IReadOnlyList<ExportedVideo> Videos, IReadOnlyList<string> Files, string? CatalogKey, IReadOnlyDictionary<string, string> NfoSamples, EpisodeSource? EpisodeSource = null);
 
 /// <summary>A video as Jellyfin has it.</summary>
 /// <param name="Relative">Path relative to the release.</param>
@@ -197,8 +204,8 @@ public sealed record ExportedRelease(string Root, string LibraryFolder, bool IsM
 public sealed record ExportedVideo(string Relative, int? Season, int? Episode, int? Height);
 
 /// <summary>An episode list.</summary>
-/// <param name="Ids">Which provider ids were used.</param>
+/// <param name="Origin">How the provider was chosen: <c>file</c> (stored in the release folder) or <c>default</c>.</param>
 /// <param name="Language">Title language.</param>
 /// <param name="Provider">Provider that answered.</param>
 /// <param name="Episodes">Episodes with titles.</param>
-public sealed record ExportedCatalog(string Ids, string Language, string? Provider, IReadOnlyList<CatalogEpisode> Episodes);
+public sealed record ExportedCatalog(string Origin, string Language, string? Provider, IReadOnlyList<CatalogEpisode> Episodes);

@@ -35,6 +35,6 @@ internal sealed class FakeMetadata(Func<int, int, string?> titles) : IMetadataSo
     public Task<IReadOnlyList<MetadataHit>> SearchAsync(bool isMovie, string name, int? year, string language, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<MetadataHit>>([new MetadataHit(name, year, new Dictionary<string, string> { ["Tmdb"] = "1" }, "fake", null, null)]);
 
-    public Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, CancellationToken cancellationToken) =>
+    public Task<string?> EpisodeTitleAsync(IReadOnlyDictionary<string, string> seriesIds, int season, int episode, string language, string? provider, CancellationToken cancellationToken) =>
         Task.FromResult(titles(season, episode));
 }
