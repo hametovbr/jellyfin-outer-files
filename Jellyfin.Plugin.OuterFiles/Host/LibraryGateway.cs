@@ -35,7 +35,8 @@ public sealed record VideoRef(Guid Id, string Path, string ReleaseRoot, string I
 /// <param name="Episode">Stored episode.</param>
 /// <param name="NfoOverridesPath">A local <c>.nfo</c> sits next to the video and the library does not save
 /// metadata into media folders: Jellyfin reads the numbers from that nfo again whenever the video changes.</param>
-public sealed record EpisodeRef(Guid Id, string Path, int? Season, int? Episode, bool NfoOverridesPath);
+/// <param name="Locked">Metadata locked by the user (numbers set by hand).</param>
+public sealed record EpisodeRef(Guid Id, string Path, int? Season, int? Episode, bool NfoOverridesPath, bool Locked = false);
 
 /// <summary>
 /// A series or movie folder as organize mode needs it.
@@ -173,7 +174,7 @@ public sealed class LibraryGateway : ILibrarySource
             {
                 var nfo = System.IO.Path.ChangeExtension(e.Path, ".nfo");
                 var overrides = System.IO.File.Exists(nfo) && !Saves(e, savingByLibrary);
-                return new EpisodeRef(e.Id, e.Path, e.ParentIndexNumber, e.IndexNumber, overrides);
+                return new EpisodeRef(e.Id, e.Path, e.ParentIndexNumber, e.IndexNumber, overrides, e.IsLocked);
             })
             .ToList();
     }

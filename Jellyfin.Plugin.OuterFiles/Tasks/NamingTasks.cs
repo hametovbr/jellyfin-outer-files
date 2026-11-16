@@ -87,7 +87,10 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
             return;
         }
 
-        var fixes = _naming.FindMisnumbered(_library.Episodes());
+        var episodes = _library.Episodes();
+        var fixes = _naming.FindMisnumbered(episodes);
+        var fixing = fixes.Select(f => f.Path).ToHashSet(StringComparer.Ordinal);
+        var contradicting = NamingRulesService.FindContradicting(episodes).Where(c => !fixing.Contains(c.Path)).ToList();
         var refreshed = 0;
         var cleared = 0;
         foreach (var fix in fixes.Where(f => _attempted.Add(f.Id)))
@@ -107,14 +110,22 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
         }
 
         var blocked = fixes.Where(f => f.Action == RenumberAction.StaleNfo).ToList();
-        _reports.Save("naming", new RenumberReport(DateTime.UtcNow, refreshed, cleared, blocked.Count, blocked.Take(100).Select(f => f.Path).ToList()));
-        if (refreshed + cleared + blocked.Count > 0)
+        _reports.Save("naming", new RenumberReport(
+            DateTime.UtcNow,
+            refreshed,
+            cleared,
+            blocked.Count,
+            blocked.Take(100).Select(f => f.Path).ToList(),
+            contradicting.Count,
+            contradicting.Take(100).ToList()));
+        if (refreshed + cleared + blocked.Count + contradicting.Count > 0)
         {
             _logger.LogInformation(
-                "Outer Files: episode numbers: {Refreshed} re-read, {Cleared} cleared, {Blocked} with a stale .nfo file",
+                "Outer Files: episode numbers: {Refreshed} re-read, {Cleared} cleared, {Blocked} with a stale .nfo file, {Contradicting} differ from SxxEyy in the file name",
                 refreshed,
                 cleared,
-                blocked.Count);
+                blocked.Count,
+                contradicting.Count);
         }
 
         progress.Report(100);
@@ -129,4 +140,6 @@ public sealed class NamingPostScanTask : ILibraryPostScanTask
 /// <param name="Cleared">Episodes whose wrong number was cleared.</param>
 /// <param name="StaleNfo">Episodes fixed in the library whose local .nfo still holds the wrong number and brings it back when the video changes (enable "Save artwork and metadata into media folders", organize the release, or delete the nfo).</param>
 /// <param name="StaleNfoSample">Up to 100 of them.</param>
-public sealed record RenumberReport(DateTime Utc, int Refreshed, int Cleared, int StaleNfo, IReadOnlyList<string> StaleNfoSample);
+/// <param name="Contradicting">Episodes named <c>SxxEyy</c> that the library holds under another number (set by a metadata provider or a local nfo); reported only.</param>
+/// <param name="ContradictingSample">Up to 100 of them.</param>
+public sealed record RenumberReport(DateTime Utc, int Refreshed, int Cleared, int StaleNfo, IReadOnlyList<string> StaleNfoSample, int Contradicting = 0, IReadOnlyList<NumberMismatch>? ContradictingSample = null);

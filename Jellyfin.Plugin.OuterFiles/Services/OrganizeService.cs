@@ -262,7 +262,7 @@ public sealed class OrganizeService
             tracks[t.Track] = t.Kind == FileKind.Audio ? d.WithFallbackLanguage(config.DefaultAudioLanguage, "default") : d;
         }
 
-        var identity = new Identity(request.IsMovie, request.Title, request.Year);
+        var identity = new Identity(request.IsMovie, request.Title, request.Year, Contradicts(session.Release.ProviderIds, request.ProviderIds));
         var library = session.Release.LibraryFolder;
         var trash = Path.Combine(library, ".outer-files-trash", DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss", CultureInfo.InvariantCulture));
         var templates = Templates(config);
@@ -354,6 +354,11 @@ public sealed class OrganizeService
         _library.QueueLibraryScan();
         return result!;
     }
+
+    // True when an id of the same provider points to another entry (Jellyfin matched K-ON! as "K-Pop ON!").
+    internal static bool Contradicts(IReadOnlyDictionary<string, string> known, IReadOnlyDictionary<string, string> chosen)
+        => chosen.Any(c => known.Any(k => string.Equals(k.Key, c.Key, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(k.Value, c.Value, StringComparison.OrdinalIgnoreCase)));
 
     private static Templates Templates(PluginConfiguration c) =>
         new(c.SeriesFolderTemplate, c.SeasonFolderTemplate, c.EpisodeFileTemplate, c.MovieFolderTemplate, c.MovieFileTemplate);

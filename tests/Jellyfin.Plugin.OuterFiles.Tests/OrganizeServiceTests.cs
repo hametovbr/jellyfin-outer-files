@@ -119,4 +119,13 @@ public sealed class OrganizeServiceTests
         Assert.False((await service.ApplyAsync(analysis.SessionId, "0000", CancellationToken.None)).Succeeded);
         Assert.True(File.Exists(a));
     }
+
+    [Theory]
+    [InlineData("Tmdb", "238681", false)]
+    [InlineData("tmdb", "42253", true)]
+    [InlineData("Kinopoisk", "1", false)]
+    public void ChosenIdsContradictOnlyWhenTheSameProviderPointsElsewhere(string provider, string id, bool expected) =>
+        Assert.Equal(expected, OrganizeService.Contradicts(
+            new Dictionary<string, string> { ["Tmdb"] = "238681", ["Tvdb"] = "87501" },
+            new Dictionary<string, string> { [provider] = id }));
 }

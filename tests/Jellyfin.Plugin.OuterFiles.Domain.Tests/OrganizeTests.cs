@@ -36,10 +36,12 @@ public sealed class OrganizeTests
     public void ProposesSpecialsAndExtrasForKOn()
     {
         var rows = Proposed(Release("K-ON!"));
-        // Sonarr's Specials/S00E05 already exists: the Henshin copy is proposed as a skipped duplicate.
-        var sp = rows["[Henshin]_K-ON!_sp_05_(BD_x264_1920x1080_FLAC).mkv"];
-        Assert.Equal((RowAction.Skip, 0, 5), Key(sp));
-        Assert.StartsWith("duplicate of Specials/K-ON! - S00E05", sp.Reason, StringComparison.Ordinal);
+        // Sonarr's Specials/S00E05 and Henshin's sp_05 are the same special: the Henshin copy has Russian
+        // subtitles, so it is kept and Sonarr's bare copy is proposed as a skipped duplicate.
+        Assert.Equal((RowAction.Special, 0, 5), Key(rows["[Henshin]_K-ON!_sp_05_(BD_x264_1920x1080_FLAC).mkv"]));
+        var sonarr = rows.First(r => r.Key.StartsWith("K-ON! - S00E05", StringComparison.Ordinal)).Value;
+        Assert.Equal((RowAction.Skip, 0, 5), Key(sonarr));
+        Assert.StartsWith("duplicate of [Henshin] K-ON! (BDrip)/Special/[Henshin]_K-ON!_sp_05", sonarr.Reason, StringComparison.Ordinal);
         Assert.Equal((RowAction.Special, 0, 19), Key(rows.First(r => r.Key.StartsWith("K-ON! - S00E19", StringComparison.Ordinal)).Value));
         Assert.Equal(RowAction.Extra, rows["[Henshin]_K-ON!_no-credit_ending_(BD_x264_1920x1080_FLAC).mkv"].Action);
     }
@@ -107,6 +109,43 @@ public sealed class OrganizeTests
             plan.Moves.Where(m => m.What == "font").Select(m => m.To).Order(StringComparer.Ordinal));
         Assert.Single(plan.Moves, m => m.What == "trash" && m.From.EndsWith("/A.ttf", StringComparison.Ordinal));
         Assert.Empty(PlanValidator.Validate(plan.Plan, ["/lib"]));
+    }
+
+    [Fact]
+    public void KeepsTheDuplicateThatHasTracksOverABareOne()
+    {
+        const string root = "/lib/Show";
+        string[] files =
+        [
+            root + "/Season 1/Show - S01E01 - Pilot WEBDL-1080p.mkv",
+            root + "/[Grp] Show (BDRip)/[Grp]_Show_01_(BD_1080p).mkv",
+            root + "/[Grp] Show (BDRip)/Rus Sub/[Grp]_Show_01_(BD_1080p).ass",
+            root + "/[Grp] Show (BDRip)/Rus Sound/[Grp]_Show_01_(BD_1080p).mka",
+        ];
+        var heights = new Dictionary<string, int> { [files[0]] = 1080, [files[1]] = 1080 };
+
+        var rows = EpisodeMapper.Propose(Inventory.Build(root, files), null, heights);
+
+        Assert.Equal(RowAction.Episode, rows.Single(r => r.Video == files[1]).Action);
+        Assert.Equal(RowAction.Skip, rows.Single(r => r.Video == files[0]).Action);
+    }
+
+    [Theory]
+    [InlineData(false, "meta")]
+    [InlineData(true, "trash")]
+    public void SeriesMetadataOfAWrongMatchDoesNotFollowTheRelease(bool reidentified, string what)
+    {
+        const string root = "/lib/K-ON!";
+        string[] files = [root + "/Season 1/K-ON! - S01E01.mkv", root + "/tvshow.nfo", root + "/poster.jpg"];
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "K-ON!", 2009, reidentified), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            files.ToHashSet(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Season 1" });
+
+        var plan = RenamePlanner.Build(ctx, EpisodeMapper.Propose(inv, null, new Dictionary<string, int>()));
+
+        Assert.All(plan.Moves.Where(m => m.From.EndsWith("tvshow.nfo", StringComparison.Ordinal) || m.From.EndsWith("poster.jpg", StringComparison.Ordinal)), m => Assert.Equal(what, m.What));
+        Assert.Equal(2, plan.Moves.Count(m => m.What == what));
     }
 
     private static (RowAction, int?, int?) Key(RowDecision r) => (r.Action, r.Season, r.Episode);

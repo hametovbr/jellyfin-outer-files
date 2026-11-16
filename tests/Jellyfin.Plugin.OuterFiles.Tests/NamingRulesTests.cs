@@ -100,4 +100,21 @@ public sealed class NamingRulesTests
 
         Console.WriteLine($"naming: {changes.Count} changed");
     }
+
+    [Fact]
+    public void ReportsNumbersThatContradictSxxEyyInTheName()
+    {
+        var found = NamingRulesService.FindContradicting(
+        [
+            new EpisodeRef(Guid.NewGuid(), "/tv/Hetalia/Season 1/Hetalia - Axis Powers - S01E27 - Germany's Diary DVD.mkv", 1, 1, false),
+            new EpisodeRef(Guid.NewGuid(), "/tv/Hetalia/Season 1/Hetalia - Axis Powers - S01E01 - Meeting of the World DVD.mkv", 1, 1, false),
+            new EpisodeRef(Guid.NewGuid(), "/tv/Paw Patrol/Season 7/Paw Patrol - S07E15-E16 - Mighty Pups.mkv", 7, 16, false),
+            new EpisodeRef(Guid.NewGuid(), "/tv/Show/Season 1/Show - S01E03.mkv", 1, 9, false, Locked: true),
+            new EpisodeRef(Guid.NewGuid(), "/tv/Show/Show 08 [BDRip].mkv", 1, 9, false),
+            new EpisodeRef(Guid.NewGuid(), "/tv/Show/Season 1/Show - S01E04.mkv", 1, null, false),
+        ]);
+
+        var only = Assert.Single(found);
+        Assert.Equal((1, 1, 1, 27), (only.StoredSeason, only.StoredEpisode, only.NamedSeason, only.NamedEpisode));
+    }
 }
