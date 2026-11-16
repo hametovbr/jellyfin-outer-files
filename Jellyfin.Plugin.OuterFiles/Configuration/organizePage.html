@@ -52,6 +52,7 @@
                     <h4>Files</h4>
                     <div id="OfRows"></div>
                     <div id="OfExtraInfo" class="fieldDescription"></div>
+                    <label class="checkboxContainer"><input is="emby-checkbox" type="checkbox" id="OfTrashLeftovers" /><span>Move what stays behind (skipped copies, scans, old nfo) to the trash folder</span></label>
                     <button is="emby-button" type="button" class="raised button-submit emby-button" id="OfPlan" style="margin-top:1em"><span>Build plan</span></button>
                 </div>
 
@@ -197,7 +198,7 @@
 
                 $('#OfPlan').addEventListener('click', function () {
                     var a = state.analysis; if (!a) { return; }
-                    var body = { SessionId: a.SessionId, IsMovie: a.IsMovie, Title: $('#OfTitle').value, Year: num($('#OfYear').value), ProviderIds: idsParse($('#OfIds').value), Rows: collectRows() };
+                    var body = { SessionId: a.SessionId, IsMovie: a.IsMovie, Title: $('#OfTitle').value, Year: num($('#OfYear').value), ProviderIds: idsParse($('#OfIds').value), Rows: collectRows(), TrashLeftovers: $('#OfTrashLeftovers').checked };
                     busy(call('POST', 'Organize/Plan', body)).then(function (p) {
                         state.plan = p;
                         var html = '<div>New folder: <code>' + esc(p.TargetRoot) + '</code> · ' + p.Operations + ' operations</div>';

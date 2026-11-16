@@ -41,6 +41,8 @@ public sealed record Identity(bool IsMovie, string Title, int? Year, bool Reiden
 /// <param name="Tracks">Resolved descriptor per track path (outer tracks and adjacent track sidecars).</param>
 /// <param name="ExistingFiles">Files that exist now in the release and in the target folder.</param>
 /// <param name="ExistingDirs">Folders that exist now (release, target, library folder).</param>
+/// <param name="TrashLeftovers">Move everything the plan would leave in the old folder (skipped copies and their
+/// tracks, scans, old nfo files) to the trash folder too, so the old folder disappears from the library.</param>
 public sealed record RenameContext(
     Inventory Inventory,
     Identity Identity,
@@ -51,7 +53,8 @@ public sealed record RenameContext(
     IReadOnlyDictionary<string, string> Qualities,
     IReadOnlyDictionary<string, TrackDescriptor> Tracks,
     IReadOnlySet<string> ExistingFiles,
-    IReadOnlySet<string> ExistingDirs);
+    IReadOnlySet<string> ExistingDirs,
+    bool TrashLeftovers = false);
 
 /// <summary>
 /// One file move as shown to the user.
@@ -215,6 +218,12 @@ public static class RenamePlanner
         var movedFrom = moves.Select(m => m.From).ToHashSet(StringComparer.Ordinal);
         var allFiles = AllFiles(inv).ToList();
         var leftInPlace = allFiles.Where(f => !movedFrom.Contains(f)).ToList();
+        if (context.TrashLeftovers && !string.Equals(root, targetRoot, StringComparison.Ordinal))
+        {
+            moves.AddRange(leftInPlace.Select(f => new PlannedMove(f, Trash(context, f), "trash")));
+            movedFrom.UnionWith(leftInPlace);
+            leftInPlace = [];
+        }
 
         var conflicts = new List<Conflict>();
         foreach (var m in moves.Where(m => context.ExistingFiles.Contains(m.To) && !movedFrom.Contains(m.To)))
