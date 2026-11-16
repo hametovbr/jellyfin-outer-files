@@ -73,7 +73,7 @@ public sealed class TitleMatcherTests
         var inv = Inventory.Build(root, files);
         var matches = TitleMatcher.Match(inv.Videos.Select(v => (v.Path, Path.GetFileNameWithoutExtension(v.Path))), [new(0, 1, "Winter Days!"), new(1, 2, "Instruments!")]);
 
-        var rows = EpisodeMapper.ProposeByTitles(inv, matches, new Dictionary<string, int>()).ToDictionary(r => Path.GetFileName(r.Video));
+        var rows = EpisodeMapper.ProposeByTitles(inv, matches, new Dictionary<string, int>(), new HashSet<(int, int)> { (0, 1), (1, 2) }).ToDictionary(r => Path.GetFileName(r.Video));
 
         Assert.Equal((RowAction.Special, 0, 1), (rows["K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv"].Action, rows["K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv"].Season, rows["K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv"].Episode));
         Assert.Equal((RowAction.Episode, 1, 2), (rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Action, rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Season, rows["[Henshin]_K-ON!_02_(BD_x264_1920x1080_FLAC).mkv"].Episode));
@@ -103,5 +103,29 @@ public sealed class TitleMatcherTests
         Assert.Equal((RowAction.Special, 0, 1), rows["K-ON! - S01E13 - Winter Days! Bluray-1080p.mkv"]);
         Assert.Equal((RowAction.Skip, 0, 1), rows["[Henshin]_K-ON!_13_(BD_x264_1920x1080_FLAC).mkv"]);
         Assert.Equal((RowAction.Episode, 1, 14), rows["[Henshin]_K-ON!_14_(BD_x264_1920x1080_FLAC).mkv"]);
+    }
+
+    [Fact]
+    public void ANamedNumberStaysWhenTheSourceTitlesTheEpisodeDifferently()
+    {
+        const string root = "/tv/K-ON!";
+        string[] files =
+        [
+            root + "/Season 2/K-ON! - S02E14 - Summer Classes! Bluray-720p.mp4",
+            root + "/Season 2/K-ON! - S02E15 - Marathon Tournament! Bluray-720p.mp4",
+            root + "/Season 2/K-ON! - S02E16 - Someone Else's Title Bluray-720p.mp4",
+            root + "/Specials/K-ON! - S00E19 - Live House! Bluray-1080p.mkv",
+        ];
+        var inv = Inventory.Build(root, files);
+        CatalogEpisode[] catalog = [new(2, 14, "Summer Course!"), new(2, 15, "Marathon Tournament!"), new(2, 16, "Something Else Entirely"), new(2, 17, "Leaving the Club!"), new(0, 9, "Live House!")];
+        var matches = TitleMatcher.Match(inv.Videos.Select(v => (v.Path, v.Stem)), catalog);
+        var known = catalog.Select(c => (c.Season, c.Episode)).ToHashSet();
+
+        var rows = EpisodeMapper.ProposeByTitles(inv, matches, new Dictionary<string, int>(), known).ToDictionary(r => Path.GetFileName(r.Video)[8..14], r => (r.Action, r.Season, r.Episode));
+
+        Assert.Equal((RowAction.Episode, 2, 14), rows["S02E14"]);
+        Assert.Equal((RowAction.Episode, 2, 15), rows["S02E15"]);
+        Assert.Equal((RowAction.Episode, 2, 16), rows["S02E16"]);
+        Assert.Equal((RowAction.Special, 0, 9), rows["S00E19"]);
     }
 }

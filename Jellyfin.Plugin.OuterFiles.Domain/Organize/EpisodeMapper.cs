@@ -64,8 +64,12 @@ public static class EpisodeMapper
     /// <param name="inventory">The release.</param>
     /// <param name="matches">Results of <see cref="TitleMatcher.Match"/>.</param>
     /// <param name="heights">Video heights from the library.</param>
+    /// <param name="known">Season/episode pairs the metadata source has; a file named <c>SxxEyy</c> (season 1+)
+    /// whose title is not found keeps that number when the source has it and no title match took it (the
+    /// release and the source titled the episode differently: "Abolition of the Club!" / "Disband the Club!").
+    /// Null: any number.</param>
     /// <returns>One decision per video, in inventory order.</returns>
-    public static IReadOnlyList<RowDecision> ProposeByTitles(Inventory inventory, IReadOnlyList<TitleMatch> matches, IReadOnlyDictionary<string, int> heights)
+    public static IReadOnlyList<RowDecision> ProposeByTitles(Inventory inventory, IReadOnlyList<TitleMatch> matches, IReadOnlyDictionary<string, int> heights, IReadOnlySet<(int Season, int Episode)>? known = null)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(matches);
@@ -86,6 +90,7 @@ public static class EpisodeMapper
             .GroupBy(m => (original[m.Video].Season, original[m.Video].Episode))
             .Where(g => g.Select(m => (m.Match!.Season, m.Match.Episode)).Distinct().Count() == 1)
             .ToDictionary(g => g.Key, g => g.First());
+        var takenByTitle = matches.Where(m => m.Match is not null).Select(m => (m.Match!.Season, m.Match.Episode)).ToHashSet();
         var rows = inventory.Videos.Select(v =>
         {
             var row = original[v.Path];
@@ -117,6 +122,14 @@ public static class EpisodeMapper
             var score = m.Score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
             if (m.Match is not { } e)
             {
+                var own = ReleaseNameParser.Parse(v.Stem);
+                if (own.Rule == "SxxEyy" && own.Season is >= 1 && own.Episode is { } ep
+                    && !takenByTitle.Contains((own.Season.Value, ep))
+                    && (known is null || known.Contains((own.Season.Value, ep))))
+                {
+                    return row with { Reason = $"title \"{m.FileTitle}\" not found (best {score}); kept S{own.Season:00}E{ep:00} from the name" };
+                }
+
                 return row with { Action = RowAction.Skip, Season = null, Episode = null, EpisodeEnd = null, Part = null, Reason = $"title \"{m.FileTitle}\" not found in the metadata source (best {score})" };
             }
 

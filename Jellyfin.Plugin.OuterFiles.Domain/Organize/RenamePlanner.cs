@@ -85,6 +85,9 @@ public static class RenamePlanner
     /// <summary>Two videos are planned as the same episode (and are not parts of it).</summary>
     public const string DuplicateEpisode = "duplicate-episode";
 
+    /// <summary>The target folder already holds a video for this episode (a second run over leftovers).</summary>
+    public const string EpisodeExists = "episode-exists";
+
     /// <summary>
     /// Plans the reorganization of one release.
     /// </summary>
@@ -217,6 +220,21 @@ public static class RenamePlanner
         foreach (var m in moves.Where(m => context.ExistingFiles.Contains(m.To) && !movedFrom.Contains(m.To)))
         {
             conflicts.Add(new Conflict(TargetExists, m.To, "A different file already has this name."));
+        }
+
+        // The target folder may already hold episodes (an earlier run organized part of the release).
+        var present = context.ExistingFiles
+            .Where(f => IsUnder(f, targetRoot) && !movedFrom.Contains(f) && MediaKinds.Of(f) == FileKind.Video)
+            .Select(f => (Path: f, Name: ReleaseNameParser.Parse(Path.GetFileNameWithoutExtension(f))))
+            .Where(x => x.Name.Rule == "SxxEyy" && x.Name.Episode is not null)
+            .GroupBy(x => (x.Name.Season, x.Name.Episode))
+            .ToDictionary(g => g.Key, g => g.First().Path);
+        foreach (var d in decisions.Where(d => d.Action is RowAction.Episode or RowAction.Special && d.Part is null && byVideo.ContainsKey(d.Video)))
+        {
+            if (present.TryGetValue((d.Season, d.Episode), out var there))
+            {
+                conflicts.Add(new Conflict(EpisodeExists, d.Video, $"S{d.Season:00}E{d.Episode:00} is already in the target folder: {Path.GetFileName(there)}. Skip {byVideo[d.Video].Relative} or give it another number."));
+            }
         }
 
         // Edited rows can put two copies on one episode; the plan would keep both under "(2)" names.
