@@ -10,6 +10,14 @@
     "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png",
     "versions": [
       {
+        "version": "0.4.3.0",
+        "changelog": "0.4.3: organize can move everything left behind (skipped copies, scans, old nfo) to the trash folder, so the old release folder disappears from the library.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.3/outer-files_0.4.3.0.zip",
+        "checksum": "4c447f77b2b09d14b41c717f2ef31937",
+        "timestamp": "2026-11-16T13:53:36Z"
+      },
+      {
         "version": "0.4.2.0",
         "changelog": "0.4.2: title matching keeps a file's SxxEyy when the source titles that episode differently; episodes already in the target folder are a plan conflict.\n",
         "targetAbi": "12.4.0.0",
