@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Emby.Naming.Common;
 using Emby.Naming.TV;
 using Jellyfin.Plugin.OuterFiles.Domain.Naming;
+using Jellyfin.Plugin.OuterFiles.Host;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.OuterFiles.Services;
@@ -14,7 +18,7 @@ namespace Jellyfin.Plugin.OuterFiles.Services;
 /// runs on the server's own parser before anything is installed, the original expressions are kept and put
 /// back when the feature is switched off, and the state is visible on the status page.
 /// </summary>
-public sealed class NamingRulesService
+public sealed partial class NamingRulesService
 {
     private readonly NamingOptions _options;
     private readonly ILogger<NamingRulesService> _logger;
@@ -79,6 +83,42 @@ public sealed class NamingRulesService
             _logger.LogInformation("Outer Files: naming rules installed ({Confined} core expressions confined to file names, {Added} added)", confined, NamingRules.Prepend.Count + NamingRules.Append.Count);
             return State = new NamingRulesState(true, $"Installed: {confined} core expressions confined to file names, {NamingRules.Prepend.Count + NamingRules.Append.Count} added.", patched.Length, []);
         }
+    }
+
+    /// <summary>
+    /// Episodes whose file name states <c>SxxEyy</c> plainly while the library holds another number: a metadata
+    /// provider or a local nfo put it there (seen: TVMaze numbering for Hetalia turned S01E27 into S1E1).
+    /// Refreshing would not help, so they are only reported; organize the release or fix the metadata source.
+    /// </summary>
+    /// <param name="episodes">Episodes with their stored numbers.</param>
+    /// <returns>Path, stored and named numbers.</returns>
+    public static IReadOnlyList<NumberMismatch> FindContradicting(IEnumerable<EpisodeRef> episodes)
+    {
+        ArgumentNullException.ThrowIfNull(episodes);
+        var result = new List<NumberMismatch>();
+        foreach (var e in episodes)
+        {
+            if (e.Locked || e.Episode is null)
+            {
+                continue;
+            }
+
+            var m = PlainSeasonEpisode().Match(Path.GetFileNameWithoutExtension(e.Path));
+            if (!m.Success)
+            {
+                continue;
+            }
+
+            var season = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            var first = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            var last = m.Groups[3].Success ? int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture) : first;
+            if (e.Season != season || e.Episode < first || e.Episode > last)
+            {
+                result.Add(new NumberMismatch(e.Path, e.Season, e.Episode, season, first));
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -179,6 +219,10 @@ public sealed class NamingRulesService
             SupportsAbsoluteEpisodeNumbers = e.SupportsAbsoluteEpisodeNumbers,
             DateTimeFormats = e.DateTimeFormats,
         };
+
+    // S01E27, s1e5, S01E01-E02 / S01E01E02, as a whole token; one per name.
+    [GeneratedRegex(@"(?<![A-Za-z0-9])[Ss](\d{1,2})[Ee](\d{1,3})(?:-?[Ee](\d{1,3}))?(?![0-9])")]
+    private static partial Regex PlainSeasonEpisode();
 }
 
 /// <summary>
@@ -216,4 +260,15 @@ public enum RenumberAction
 
     /// <summary>Refreshed like <see cref="Refresh"/>, but a local .nfo the library does not rewrite still holds the wrong number and brings it back when the video changes: reported.</summary>
     StaleNfo,
+
 }
+
+/// <summary>
+/// An episode whose stored numbers contradict the <c>SxxEyy</c> in its file name.
+/// </summary>
+/// <param name="Path">Video.</param>
+/// <param name="StoredSeason">Season in the library.</param>
+/// <param name="StoredEpisode">Episode in the library.</param>
+/// <param name="NamedSeason">Season in the name.</param>
+/// <param name="NamedEpisode">Episode in the name.</param>
+public sealed record NumberMismatch(string Path, int? StoredSeason, int? StoredEpisode, int NamedSeason, int NamedEpisode);

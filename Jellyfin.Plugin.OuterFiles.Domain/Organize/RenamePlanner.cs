@@ -23,7 +23,10 @@ public sealed record Templates(string SeriesFolder, string SeasonFolder, string 
 /// <param name="IsMovie">Movie or series.</param>
 /// <param name="Title">Canonical title from the metadata source.</param>
 /// <param name="Year">Premiere year.</param>
-public sealed record Identity(bool IsMovie, string Title, int? Year);
+/// <param name="Reidentified">The chosen metadata entry differs from the one Jellyfin matched: the old
+/// tvshow.nfo/movie.nfo and artwork describe the wrong title and go to the trash instead of moving along, so
+/// Jellyfin identifies the new folder from its name.</param>
+public sealed record Identity(bool IsMovie, string Title, int? Year, bool Reidentified = false);
 
 /// <summary>
 /// Everything the planner needs besides the decisions.
@@ -166,7 +169,11 @@ public static class RenamePlanner
         foreach (var meta in inv.FolderMeta)
         {
             var atRoot = string.Equals(Path.GetDirectoryName(meta), root, StringComparison.Ordinal);
-            if (atRoot && !string.Equals(targetRoot, root, StringComparison.Ordinal))
+            if (atRoot && context.Identity.Reidentified)
+            {
+                moves.Add(new PlannedMove(meta, Trash(context, meta), "trash"));
+            }
+            else if (atRoot && !string.Equals(targetRoot, root, StringComparison.Ordinal))
             {
                 var to = Path.Combine(targetRoot, Path.GetFileName(meta));
                 if (taken.Add(to))

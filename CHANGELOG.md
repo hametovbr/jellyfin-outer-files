@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1.0
+
+Fixes from the first organize runs on a real library:
+
+- **Duplicates**: of two copies of one episode, organize keeps the one with more attached tracks (a BD
+  release with Russian dub and subtitles over a bare WEB-DL), then the higher resolution. Before, the
+  bare copy could win and the tracks stayed behind with the skipped copy (K-ON!, JUJUTSU KAISEN).
+- **Wrong Jellyfin match**: when the metadata entry picked in organize contradicts the one Jellyfin matched
+  (K-ON! identified as "K-Pop ON!"), the old `tvshow.nfo`/`movie.nfo` and artwork go to the trash folder
+  instead of moving along, so Jellyfin identifies the new folder from its name.
+- **Numbers that contradict the file name**: the status lists episodes named `SxxEyy` that the library
+  holds under another number (seen: Hetalia `S01E27` stored as episode 1, from a metadata provider or a
+  local nfo). Reported only, a refresh would not change them.
+
 ## 0.3.0.0
 
 - **Fonts** (setting, off by default): fonts shipped in release `fonts/` folders (.ttf, .otf, .woff, .woff2)

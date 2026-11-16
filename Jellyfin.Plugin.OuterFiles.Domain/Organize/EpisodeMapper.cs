@@ -1,3 +1,5 @@
+using Jellyfin.Plugin.OuterFiles.Domain.Model;
+
 namespace Jellyfin.Plugin.OuterFiles.Domain.Organize;
 
 /// <summary>
@@ -125,15 +127,21 @@ public static class EpisodeMapper
         return new RowDecision(video.Path, RowAction.Episode, 1, p.Episode, p.EpisodeEnd, part, p.Rule + (p.IsAbsolute ? ", absolute number, season 1 assumed" : ", season 1 assumed"));
     }
 
-    // Two files for the same episode: keep the better one (higher resolution, then the one already in a
-    // season folder), skip the rest and say why. Parts of a split episode are not duplicates.
+    // Two files for the same episode: keep the one with more attached tracks (a BD release with dubs and subs
+    // beats a bare WEB-DL), then the higher resolution, then the one already in a season folder; skip the rest
+    // and say why. Parts of a split episode are not duplicates.
     private static List<RowDecision> ResolveDuplicates(List<RowDecision> rows, Inventory inventory, IReadOnlyDictionary<string, int> heights)
     {
         var relative = inventory.Videos.ToDictionary(v => v.Path, v => v.Relative, StringComparer.Ordinal);
+        var tracks = inventory.Videos.ToDictionary(
+            v => v.Path,
+            v => v.OuterTracks.Count + v.Sidecars.Count(s => MediaKinds.Of(s.Path) is FileKind.Audio or FileKind.Subtitle),
+            StringComparer.Ordinal);
         foreach (var group in rows.Where(r => r.Action is RowAction.Episode or RowAction.Special).GroupBy(r => (r.Season, r.Episode, r.Part)).Where(g => g.Count() > 1))
         {
             var best = group
-                .OrderByDescending(r => heights.TryGetValue(r.Video, out var h) ? h : 0)
+                .OrderByDescending(r => tracks[r.Video])
+                .ThenByDescending(r => heights.TryGetValue(r.Video, out var h) ? h : 0)
                 .ThenByDescending(r => relative[r.Video].Contains("Season ", StringComparison.OrdinalIgnoreCase))
                 .ThenBy(r => r.Video, StringComparer.Ordinal)
                 .First();
