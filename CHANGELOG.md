@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0.0
+
+- **Match by episode titles** (organize page, `POST /OuterFiles/Organize/Titles`): for releases that number
+  episodes their own way. The title is read from each file name (after `SxxEyy` or the release's own number,
+  without quality tags; `(Часть 1)`/`Part 2` become parts) and matched against every episode and special of
+  the chosen series, in the title language and, for Cyrillic names, in Russian. Each episode is taken once
+  (parts of one episode share it); a match needs a clear lead. Files whose title the source does not know
+  are proposed as skip with the reason; files without a title keep the usual proposal. Checked on the
+  Jimmy Neutron release (`JN.02a/02b` are separate TMDb episodes): 76 of 84 files match exactly, the other 8
+  are TV specials found in season 0.
+
 ## 0.3.1.0
 
 Fixes from the first organize runs on a real library:

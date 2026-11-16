@@ -120,6 +120,30 @@ public sealed class OrganizeServiceTests
         Assert.True(File.Exists(a));
     }
 
+    [Fact]
+    public async Task NumbersARunOfSegmentsAndSpecialsByTheirTitles()
+    {
+        using var tree = new TempTree();
+        const string rel = "tv/Приключения Джимми Нейтрона (Сезоны 1-3)";
+        string[] names = ["JN.01.Когда атакуют штаны", "JN.02a.Обычный мальчик", "JN.02b.Рождение коммерсанта", "JN.39.Атака твонков (Часть 1)", "JN.40.Атака твонков (Часть 2)", "JN.41.Победи, проиграй и прощай"];
+        var videos = names.Select(n => new ReleaseVideo(Guid.NewGuid(), tree.File($"{rel}/{n}.avi"), null, null, 480)).ToList();
+        var release = new ReleaseRef(tree.P(rel), tree.P("tv"), false, "Jimmy", 2002, new Dictionary<string, string>(), videos);
+        var titles = new Dictionary<(int, int), string> { [(1, 1)] = "Когда атакуют штаны", [(1, 2)] = "Обычный мальчик", [(1, 3)] = "Рождение коммерсанта", [(0, 2)] = "Атака твонков", [(0, 9)] = "Совсем другой спецвыпуск" };
+        var service = new OrganizeService(new FakeLibrary(tree.P("meta"), [tree.P("tv")], [], [release]), new FakeMetadata((s, e) => titles.GetValueOrDefault((s, e))), new FileSystemReader(),
+            new PlanExecutor(new JournalStore(tree.P("_data/j")), NullLogger<PlanExecutor>.Instance), new OperationGate(), new NamingOptions(), NullLogger<OrganizeService>.Instance);
+
+        var analysis = service.Analyze(tree.P(rel))!;
+        var byTitle = (await service.ProposeByTitlesAsync(analysis.SessionId, new Dictionary<string, string> { ["Tmdb"] = "2129" }, new PluginConfiguration(), CancellationToken.None))!
+            .Rows.ToDictionary(r => r.Relative[..6].TrimEnd('.'), r => (r.Action, r.Season, r.Episode, r.Part));
+
+        Assert.Equal((RowAction.Episode, 1, 1, (int?)null), byTitle["JN.01"]);
+        Assert.Equal((RowAction.Episode, 1, 2, (int?)null), byTitle["JN.02a"]);
+        Assert.Equal((RowAction.Episode, 1, 3, (int?)null), byTitle["JN.02b"]);
+        Assert.Equal((RowAction.Special, 0, 2, (int?)1), byTitle["JN.39"]);
+        Assert.Equal((RowAction.Special, 0, 2, (int?)2), byTitle["JN.40"]);
+        Assert.Equal(RowAction.Skip, byTitle["JN.41"].Action);
+    }
+
     [Theory]
     [InlineData("Tmdb", "238681", false)]
     [InlineData("tmdb", "42253", true)]

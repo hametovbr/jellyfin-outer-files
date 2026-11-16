@@ -189,6 +189,80 @@ public sealed class OrganizeService
     }
 
     /// <summary>
+    /// Re-proposes rows of a session by the episode titles in the file names, matched against every episode
+    /// and special of the series in the title language and, for Cyrillic names, in Russian.
+    /// </summary>
+    /// <param name="sessionId">Session.</param>
+    /// <param name="seriesIds">Series provider ids.</param>
+    /// <param name="config">Configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new proposals, or null when the session is unknown.</returns>
+    public async Task<Analysis?> ProposeByTitlesAsync(string sessionId, IReadOnlyDictionary<string, string> seriesIds, PluginConfiguration config, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return null;
+        }
+
+        var files = session.Inventory.Videos.Select(v => (v.Path, v.Stem)).ToList();
+        var languages = new List<string> { config.TitleLanguage };
+        if (files.Any(f => TitleMatcher.TitleOf(f.Stem) is { } t && t.Title.Any(c => c is >= '\u0400' and <= '\u04FF')))
+        {
+            languages.Add("ru");
+        }
+
+        var catalog = new List<CatalogEpisode>();
+        var counts = new List<int>();
+        foreach (var language in languages.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            // Specials are numbered with gaps (S00E17, S00E19): stop after several misses in a row.
+            for (int episode = 1, misses = 0; episode <= 200 && misses < 6 && !cancellationToken.IsCancellationRequested; episode++)
+            {
+                var title = await _metadata.EpisodeTitleAsync(seriesIds, 0, episode, language, cancellationToken).ConfigureAwait(false);
+                misses = title is null ? misses + 1 : 0;
+                if (title is not null)
+                {
+                    catalog.Add(new CatalogEpisode(0, episode, title));
+                }
+            }
+
+            var seasonCounts = new List<int>();
+            for (var season = 1; season <= 60 && !cancellationToken.IsCancellationRequested; season++)
+            {
+                var count = 0;
+                while (count < 500 && await _metadata.EpisodeTitleAsync(seriesIds, season, count + 1, language, cancellationToken).ConfigureAwait(false) is { } title)
+                {
+                    count++;
+                    catalog.Add(new CatalogEpisode(season, count, title));
+                }
+
+                if (count == 0)
+                {
+                    break;
+                }
+
+                seasonCounts.Add(count);
+            }
+
+            if (counts.Count == 0)
+            {
+                counts = seasonCounts;
+            }
+        }
+
+        if (catalog.Count == 0)
+        {
+            // Nothing to match against (no ids, no provider reachable): keep the usual proposal.
+            _logger.LogWarning("Outer Files: no episode titles found for {Ids}", string.Join(", ", seriesIds.Select(kv => kv.Key + "=" + kv.Value)));
+            return session.View(EpisodeMapper.Propose(session.Inventory, null, session.Heights), counts);
+        }
+
+        var matches = TitleMatcher.Match(files, catalog);
+        return session.View(EpisodeMapper.ProposeByTitles(session.Inventory, matches, session.Heights), counts);
+    }
+
+    /// <summary>
     /// Searches the metadata providers.
     /// </summary>
     /// <param name="isMovie">Movie or series.</param>

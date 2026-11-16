@@ -60,6 +60,17 @@ public class OrganizeController : ControllerBase
         return analysis is null ? NotFound() : Ok(analysis);
     }
 
+    /// <summary>Re-proposes the rows by episode titles in the file names.</summary>
+    /// <param name="body">Session and series ids.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Analysis.</returns>
+    [HttpPost("Titles")]
+    public async Task<ActionResult<Analysis>> Titles([FromBody, Required] AbsoluteBody body, CancellationToken cancellationToken)
+    {
+        var analysis = await _organize.ProposeByTitlesAsync(body.SessionId, body.ProviderIds, Plugin.Instance!.Configuration, cancellationToken).ConfigureAwait(false);
+        return analysis is null ? NotFound() : Ok(analysis);
+    }
+
     /// <summary>Searches metadata providers.</summary>
     /// <param name="name">Name.</param>
     /// <param name="isMovie">Movie or series.</param>
