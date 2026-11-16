@@ -128,4 +128,43 @@ public sealed class TitleMatcherTests
         Assert.Equal((RowAction.Episode, 2, 16), rows["S02E16"]);
         Assert.Equal((RowAction.Special, 0, 9), rows["S00E19"]);
     }
+
+    [Fact]
+    public void AReleaseNumberedInAnotherOrderIsRenumberedIncludingDoubleFiles()
+    {
+        const string root = "/tv/Paw Patrol";
+        string[] files =
+        [
+            root + "/Season 1/Paw Patrol - S01E01-E02 - Pups Make a Splash + Pups Fall Festival WEBDL-720p.mp4",
+            root + "/Season 1/Paw Patrol - S01E05-E06 - Pups and the Kitty-tastrophe + Pups Save a Train WEBDL-720p.mp4",
+            root + "/Season 1/Paw Patrol - S01E25 - Pups Save a Goodway WEBDL-720p.mp4",
+            root + "/Season 1/Paw Patrol - S01E26 - Pups Save a Hoedown SDTV.mp4",
+            root + "/Season 1/Paw Patrol - S01E25-E26 - Pups Save a Goodway + Pups Save a Hoedown WEBDL-720p.mp4",
+            root + "/Season 1/Paw Patrol - S01E09-E10 - Pup Pup Goose + Something Unknown WEBDL-720p.mp4",
+            root + "/Season 1/Paw Patrol - S01E11-E12 - Pups on Ice + Pups Save the Bay WEBDL-720p.mp4",
+        ];
+        CatalogEpisode[] catalog =
+        [
+            new(1, 1, "Pups and the Kitty-tastrophe"), new(1, 2, "Pups Save a Train"),
+            new(1, 9, "Pup Pup Goose"), new(1, 10, "Pup Pup and Away"),
+            new(1, 15, "Pups Save the Bay"), new(1, 20, "Pups Save a Goodway"), new(1, 21, "Pups Save a Hoedown"),
+            new(1, 29, "Pups Fall Festival"), new(1, 30, "Pups Make a Splash"), new(1, 31, "Pups On Ice"),
+        ];
+        var inv = Inventory.Build(root, files);
+        var matches = TitleMatcher.Match(inv.Videos.Select(v => (v.Path, v.Stem)), catalog);
+
+        var rows = EpisodeMapper.ProposeByTitles(inv, matches, new Dictionary<string, int>(), catalog.Select(c => (c.Season, c.Episode)).ToHashSet())
+            .ToDictionary(r => Path.GetFileName(r.Video)[13..].Split(" - ")[0], r => (r.Action, r.Season, r.Episode, r.EpisodeEnd));
+
+        Assert.Equal((RowAction.Episode, 1, 29, 30), rows["S01E01-E02"]);
+        Assert.Equal((RowAction.Episode, 1, 1, 2), rows["S01E05-E06"]);
+        Assert.Equal((RowAction.Episode, 1, 20, 21), rows["S01E25-E26"]);
+        Assert.Equal(RowAction.Skip, rows["S01E25"].Action);
+        Assert.Equal(RowAction.Skip, rows["S01E26"].Action);
+
+        // An unknown half and halves that are not neighbours in the source: not guessed, and the file's own
+        // number is not trusted either, because this release is numbered differently.
+        Assert.Equal(RowAction.Skip, rows["S01E09-E10"].Action);
+        Assert.Equal(RowAction.Skip, rows["S01E11-E12"].Action);
+    }
 }

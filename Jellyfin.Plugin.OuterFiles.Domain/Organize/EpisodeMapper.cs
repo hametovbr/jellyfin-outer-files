@@ -90,7 +90,17 @@ public static class EpisodeMapper
             .GroupBy(m => (original[m.Video].Season, original[m.Video].Episode))
             .Where(g => g.Select(m => (m.Match!.Season, m.Match.Episode)).Distinct().Count() == 1)
             .ToDictionary(g => g.Key, g => g.First());
-        var takenByTitle = matches.Where(m => m.Match is not null).Select(m => (m.Match!.Season, m.Match.Episode)).ToHashSet();
+        var takenByTitle = matches.Where(m => m.Match is not null)
+            .SelectMany(m => Enumerable.Range(m.Match!.Episode, (m.MatchEnd?.Episode ?? m.Match.Episode) - m.Match.Episode + 1).Select(n => (m.Match.Season, n)))
+            .ToHashSet();
+
+        // A file's own SxxEyy is trusted for a title the source does not know only when the release is
+        // numbered like the source: the titles that did match sit on their own numbers.
+        var named = matches.Where(m => m.Match is not null)
+            .Select(m => (m, Own: ReleaseNameParser.Parse(Path.GetFileNameWithoutExtension(m.Video))))
+            .Where(x => x.Own.Rule == "SxxEyy" && x.Own.Season is >= 1)
+            .ToList();
+        var sameNumbering = named.Count(x => (x.Own.Season, x.Own.Episode) == (x.m.Match!.Season, x.m.Match.Episode)) * 5 >= named.Count * 4;
         var rows = inventory.Videos.Select(v =>
         {
             var row = original[v.Path];
@@ -123,7 +133,7 @@ public static class EpisodeMapper
             if (m.Match is not { } e)
             {
                 var own = ReleaseNameParser.Parse(v.Stem);
-                if (own.Rule == "SxxEyy" && own.Season is >= 1 && own.Episode is { } ep
+                if (sameNumbering && own.Rule == "SxxEyy" && own.Season is >= 1 && own.Episode is { } ep
                     && !takenByTitle.Contains((own.Season.Value, ep))
                     && (known is null || known.Contains((own.Season.Value, ep))))
                 {
@@ -138,9 +148,11 @@ public static class EpisodeMapper
                 e.Season == 0 ? RowAction.Special : RowAction.Episode,
                 e.Season,
                 e.Episode,
-                null,
+                m.MatchEnd?.Episode,
                 shared.Contains(v.Path) ? m.Part : null,
-                $"title \"{m.FileTitle}\" = \"{e.Title}\" ({score})");
+                m.MatchEnd is { } end
+                    ? $"title \"{m.FileTitle}\" = \"{e.Title}\" + \"{end.Title}\" ({score})"
+                    : $"title \"{m.FileTitle}\" = \"{e.Title}\" ({score})");
         }).ToList();
         return ResolveDuplicates(rows, inventory, heights);
     }

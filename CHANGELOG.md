@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.6.0
+
+- **Match by episode titles, double files**: `SxxEyy-Ezz - A + B` is matched half by half; when both halves
+  are neighbouring episodes of the source (in either order) the file takes that range. A half the source
+  titles differently is accepted when the neighbour resembles it. Halves that are not neighbours are not
+  guessed (skip, with the reason).
+- **Match by episode titles, own numbers**: a file's own `SxxEyy` is kept for an unknown title only when the
+  release is numbered like the source (at least 4 of 5 matched titles sit on their own numbers). On a
+  release in another order (Paw Patrol: TVDB against TMDb) the fallback put files on other episodes.
+- A second copy with a near-exact title shares the episode and is resolved as a duplicate, instead of being
+  reported as "title not found".
+- **Plan**: `tvshow.nfo`/artwork that the target folder already has stays there; the release's own copy goes
+  to the trash (was a `target-exists` conflict after an undo that kept the folder).
+
 ## 0.4.5.0
 
 - **Plan: numbering check.** The episode title in a file name is compared with the source's title for the
