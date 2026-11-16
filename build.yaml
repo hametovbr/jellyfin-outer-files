@@ -1,7 +1,7 @@
 name: "Outer Files"
 guid: "3dcc5bff-46c4-4ed9-aa71-67b520faee96"
 image: "thumb.png"
-version: "0.4.1.0"
+version: "0.4.2.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Link tracks from sub folders, fix episode numbers of release names, organize releases"
@@ -20,5 +20,5 @@ artifacts:
   - "Jellyfin.Plugin.OuterFiles.dll"
   - "Jellyfin.Plugin.OuterFiles.Domain.dll"
 changelog: >
-  0.4.1: a plan with two files on one episode is a conflict instead of a "(2)" copy; with title matching,
-  untitled copies follow the titled copy that carries the same number.
+  0.4.2: title matching keeps a file's SxxEyy when the source titles that episode differently; episodes
+  already in the target folder are a plan conflict.

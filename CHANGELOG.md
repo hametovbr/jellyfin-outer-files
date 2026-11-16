@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2.0
+
+- **Match by episode titles**: a file named `SxxEyy` (season 1 and later) whose title the source does not
+  know keeps its own number when the source has that episode and no title match took it. Before, it was
+  skipped: on K-ON! the TVDB titles of Sonarr's files ("Summer Classes!", "No Music Room!", "Exams") differ
+  from TMDb's, and three episodes of season 2 stayed behind in the old folder. Double files
+  (`S01E25-E26 - A + B`) keep their numbers the same way.
+- **Plan**: an episode that the target folder already holds is an `episode-exists` conflict, so a second
+  run over the leftovers of a release cannot add a second copy.
+
 ## 0.4.1.0
 
 - **Plan**: two files planned as the same episode (rows edited by hand or through the API) are a

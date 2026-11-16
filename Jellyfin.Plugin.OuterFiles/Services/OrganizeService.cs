@@ -259,7 +259,8 @@ public sealed class OrganizeService
         }
 
         var matches = TitleMatcher.Match(files, catalog);
-        return session.View(EpisodeMapper.ProposeByTitles(session.Inventory, matches, session.Heights), counts);
+        var known = catalog.Select(c => (c.Season, c.Episode)).ToHashSet();
+        return session.View(EpisodeMapper.ProposeByTitles(session.Inventory, matches, session.Heights, known), counts);
     }
 
     /// <summary>

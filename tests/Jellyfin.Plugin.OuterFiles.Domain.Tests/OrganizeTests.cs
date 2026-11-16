@@ -166,4 +166,20 @@ public sealed class OrganizeTests
         Assert.Equal(RenamePlanner.DuplicateEpisode, conflict.Code);
         Assert.StartsWith("S01E01 is planned for 2 files: Other/Show - 01 [720p].mkv (1 tracks)", conflict.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void EpisodesAlreadyInTheTargetFolderAreAConflict()
+    {
+        const string root = "/lib/K-ON!";
+        string[] files = [root + "/Season 1/K-ON! - S01E01 - Abolition of the Club! Bluray-1080p.mkv", root + "/Season 2/K-ON! - S02E14 - Summer Classes! Bluray-720p.mp4"];
+        var existing = files.Append("/lib/K-ON! (2009)/Season 01/K-ON! (2009) - S01E01 - Disband the Club! 1080p.mkv").ToHashSet(StringComparer.Ordinal);
+        var inv = Inventory.Build(root, files);
+        var ctx = new RenameContext(inv, new Identity(false, "K-ON!", 2009), "/lib", "/lib/.outer-files-trash/x", Default,
+            new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, TrackDescriptor>(),
+            existing, new HashSet<string>(StringComparer.Ordinal) { "/lib", root, root + "/Season 1", root + "/Season 2", "/lib/K-ON! (2009)", "/lib/K-ON! (2009)/Season 01" });
+
+        var conflict = Assert.Single(RenamePlanner.Build(ctx, EpisodeMapper.Propose(inv, null, new Dictionary<string, int>())).Conflicts);
+
+        Assert.Equal((RenamePlanner.EpisodeExists, files[0]), (conflict.Code, conflict.Path));
+    }
 }
