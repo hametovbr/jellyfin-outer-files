@@ -10,6 +10,14 @@
     "imageUrl": "https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png",
     "versions": [
       {
+        "version": "0.4.2.0",
+        "changelog": "0.4.2: title matching keeps a file's SxxEyy when the source titles that episode differently; episodes already in the target folder are a plan conflict.\n",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/hametovbr/jellyfin-outer-files/releases/download/v0.4.2/outer-files_0.4.2.0.zip",
+        "checksum": "9fc8bd57fd0badcff15a6b1cede00cfb",
+        "timestamp": "2026-11-16T13:22:27Z"
+      },
+      {
         "version": "0.4.1.0",
         "changelog": "0.4.1: a plan with two files on one episode is a conflict instead of a \"(2)\" copy; with title matching, untitled copies follow the titled copy that carries the same number.\n",
         "targetAbi": "12.4.0.0",
