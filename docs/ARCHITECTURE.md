@@ -269,6 +269,19 @@ All endpoints require elevation. Apply requires the hash of the plan the user re
 - **Stale per-episode nfo.** Jellyfin reads `<episode>` from local nfo files, so moving them with the video
   would re-impose old numbers. Organize mode moves them to `<library>/.outer-files-trash/<time>/` (Jellyfin
   ignores dot folders, `IgnorePatterns`: `**/.*`); undo brings them back.
+- **Stale nfo and re-numbering (0.3).** Measured live: an existing episode nfo makes Jellyfin treat the nfo
+  saver as enabled (`IsSaverEnabledForItem` for a metadata edit), so a replace-all refresh skips local
+  providers and takes the number from the path; but the refresh does not rewrite the nfo unless the library
+  saves local metadata, and the next default-mode refresh of a changed file reads the old number again.
+  The plugin therefore refreshes those episodes too and reports their nfo files; with local saving on the
+  nfo is rewritten (verified). Episodes whose stored number already equals the fixed parse are skipped.
+- **Fonts (0.3).** `FallbackFonts` registers `<data>/outer-files/fonts` as `EncodingOptions.FallbackFontPath`
+  only when it is empty or already ours; font links are reconciled with the same planner and journal as
+  track links. Jellyfin serves only .ttf/.otf/.woff/.woff2, 20 MiB in total (`SubtitleController`).
+- **Undo against Jellyfin's own writes (0.3).** With local saving on, Jellyfin writes nfo files and
+  thumbnails into organized folders; undo keeps such folders (`FolderNotEmptyException`, journal state
+  `kept`) instead of failing, and moves whose result is already in place are skipped, so any interrupted
+  run can be retried.
 - **Split episodes** (`JN.02a/02b`) are named `… - pt1/pt2`; Jellyfin stacks them into one episode
   (verified: `PartCount=2`).
 - **Testability seams**: `ILibrarySource`, `IRefresher`, `IMetadataSource` keep services free of Jellyfin
@@ -284,13 +297,17 @@ All endpoints require elevation. Apply requires the hash of the plan the user re
   title, forced as expected), TV-2 became S2E1–3; a second scan changed nothing and re-probed nothing;
   subtitles were served through the links; organize moved Jitsu to `Season 01` with tracks next to the
   videos (no links needed), undo restored all 98 files exactly.
-- Not verified: the two dashboard pages in a browser (no web client in the test environment); their
-  endpoints and JavaScript syntax were checked.
+- 0.3, same server with jellyfin-web 12.4 built from source and driven in headless Chromium: both pages
+  render and work; Jitsu organized from the page (101 moves) with 7 external streams per
+  episode, undone from the page (original tree restored, the new folder kept because Jellyfin had saved
+  metadata into it); a movie release organized (`Some Movie (2010)/Some Movie (2010) Bluray-1080p.rus.srt`)
+  and undone byte-exact; release fonts served by `/FallbackFont/Fonts`; stale nfo checked with local
+  saving off (reported, fixed until the file changes) and on (nfo rewritten to the right number).
 
 ## 14. Open points
 - Which metadata providers are installed (TMDB is built in; TVDB/AniDB/Shikimori plugins change what
   identify can find for anime).
-- Fonts for `.ass`: Jellyfin only supports a global fallback font folder; organize mode collects release
-  fonts into `fonts/` of the series folder, but does not register them with Jellyfin.
+- Fonts for `.ass`: Jellyfin only supports a global fallback font folder (now optionally filled by the
+  plugin); per-release fonts and libraries above 20 MiB of fonts are not possible in Jellyfin itself.
 - Files the recognition rules cannot number (`136. Title`, `JN.01`) keep whatever number Jellyfin stored
   until they are organized.

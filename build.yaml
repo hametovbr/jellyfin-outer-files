@@ -1,7 +1,7 @@
 name: "Outer Files"
 guid: "3dcc5bff-46c4-4ed9-aa71-67b520faee96"
 image: "thumb.png"
-version: "0.2.0.0"
+version: "0.3.0.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Link tracks from sub folders, fix episode numbers of release names, organize releases"
@@ -20,6 +20,7 @@ artifacts:
   - "Jellyfin.Plugin.OuterFiles.dll"
   - "Jellyfin.Plugin.OuterFiles.Domain.dll"
 changelog: >
-  0.2.0: ground-up rewrite. Link mode via symlinks in Jellyfin's per-item metadata folder (the 0.1.x approach
-  of writing SubtitleFiles was overwritten by every probe); episode naming rules with a self-test; organize
-  mode with plan, journal and undo; settings and organize pages.
+  0.3.0: optional collection of release fonts as Jellyfin fallback fonts; episode re-numbering aware of local
+  nfo files, clears numbers the rules cannot replace; organize normalizes names of adjacent tracks, keeps one
+  copy of duplicate fonts, guesses readable titles; undo keeps folders Jellyfin saved metadata into and can be
+  retried.

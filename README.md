@@ -36,6 +36,12 @@ For every video the plugin keeps symlinks with Jellyfin-readable names
 them like any adjacent file. The links are reconciled after each scan: new tracks get links, removed tracks
 lose them, nothing else is touched. Media folders stay exactly as they are.
 
+**Fonts** (off by default): `.ass` subtitles often come with a `fonts/` folder. Jellyfin has no per-item
+fonts, only a global fallback font folder (Dashboard → Playback → Transcoding). With *Collect fonts* on, the
+plugin links every .ttf/.otf/.woff/.woff2 from release font folders into its own folder and registers it
+there, if that setting is empty or already the plugin's. The web player then renders styled subtitles with
+the intended fonts. Jellyfin loads at most 20 MiB of fallback fonts.
+
 ## Episode recognition
 
 Jellyfin parses episode numbers from the full path, so folder names leak into numbers. The plugin confines
@@ -53,7 +59,10 @@ Jellyfin's path-unaware expressions to the file name and adds rules for common r
 The rules are installed into Jellyfin's naming options at start-up **only after a self-test on the
 server's own parser**; switching the setting off restores Jellyfin's rules immediately. Measured on a real
 library of 4365 videos: only the intended 197 files change. After each scan, episodes still carrying a
-number that is known to be wrong are refreshed so Jellyfin re-reads them.
+number that is known to be wrong are refreshed so Jellyfin re-reads them; numbers no rule can replace
+(`JN.16`, `NCOP1`) are cleared. A per-episode `.nfo` next to the video wins over the file name whenever
+Jellyfin re-reads a changed file: if the library does not save metadata into media folders, the status lists
+such nfo files (delete them, organize the release, or turn that library option on and Jellyfin rewrites them).
 
 ## Organize mode
 
@@ -69,11 +78,13 @@ Dashboard → **Outer Files: Organize**:
 3. **Build plan** shows every move. Nothing is overwritten. Every new episode name is checked to read back
    as the intended season/episode with the server's parser.
 4. **Apply** runs the plan through a journal written before each step and queues a library scan.
-5. **Journal → Undo** puts everything back.
+5. **Journal → Undo** puts everything back. Folders Jellyfin saved its own metadata into after organizing
+   are kept and listed; an interrupted run can simply be undone or applied again.
 
-What moves with a video: adjacent subtitles/audio and `-thumb.jpg`; tracks from sub folders (next to the
+What moves with a video: adjacent subtitles/audio (renamed to the same normalized suffixes) and
+`-thumb.jpg`; tracks from sub folders (next to the
 video, under Jellyfin-readable names, so the organized folder needs no links); specials to `Season 00`;
-NCOP/NCED/menus to `extras/`; fonts to `fonts/`; `tvshow.nfo` and artwork with the series folder.
+NCOP/NCED/menus to `extras/`; fonts to `fonts/` (one copy per file name); `tvshow.nfo` and artwork with the series folder.
 Per-episode `.nfo` files carry the old numbers, so they go to a hidden `.outer-files-trash` folder in the
 library instead (Jellyfin ignores dot folders and writes fresh ones if its nfo saver is on). Files the plan
 does not understand stay where they are.
