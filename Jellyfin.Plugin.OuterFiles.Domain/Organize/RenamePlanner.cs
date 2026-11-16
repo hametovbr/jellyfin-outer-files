@@ -183,11 +183,13 @@ public static class RenamePlanner
 
         foreach (var font in inv.Fonts)
         {
+            // Releases ship the same fonts once per subtitle group (EN Subs/fonts, RU Subs/Fonts): one copy per
+            // file name is kept, the others go to the trash folder like stale nfo files.
             var to = Path.Combine(targetRoot, "fonts", Path.GetFileName(font));
             if (!taken.Add(to))
             {
-                to = Path.Combine(targetRoot, "fonts", Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(font)!)!) ?? "other", Path.GetFileName(font));
-                taken.Add(to);
+                moves.Add(new PlannedMove(font, Trash(context, font), "trash"));
+                continue;
             }
 
             if (!string.Equals(font, to, StringComparison.Ordinal))
