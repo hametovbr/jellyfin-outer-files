@@ -59,7 +59,9 @@ jobs:
               # jprm points imageUrl at a path that is not part of a release; serve the icon from main.
               plugin['imageUrl'] = 'https://raw.githubusercontent.com/hametovbr/jellyfin-outer-files/main/thumb.png'
               for version in plugin.get('versions', []):
-                  version['sourceUrl'] = version['sourceUrl'].split('?')[0] + '?manifest=1'
+                  # Jellyfin installs only URLs whose extension is ".zip" (Path.GetExtension of the whole
+                  # URL, InstallationManager.cs:525): a query string such as "?manifest=1" makes it refuse.
+                  version['sourceUrl'] = version['sourceUrl'].split('?')[0]
           pathlib.Path('manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
           PYEOF
 
