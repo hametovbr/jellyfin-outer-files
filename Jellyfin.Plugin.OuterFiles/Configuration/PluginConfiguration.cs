@@ -14,6 +14,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether the plugin's episode naming rules are installed.</summary>
     public bool EnableNamingRules { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether fonts shipped with releases are offered to Jellyfin as fallback fonts for ASS subtitles.</summary>
+    public bool CollectFonts { get; set; }
+
     /// <summary>Gets or sets the language for external audio whose language cannot be found (ISO 639-2).</summary>
     public string DefaultAudioLanguage { get; set; } = "rus";
 

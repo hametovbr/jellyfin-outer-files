@@ -26,6 +26,11 @@
                         <input id="DefaultAudioLanguage" type="text" is="emby-input" maxlength="3" />
                         <div class="fieldDescription">ISO 639-2 code, e.g. <code>rus</code>, <code>jpn</code>, <code>eng</code>. Subtitles are recognised from their text instead.</div>
                     </div>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="CollectFonts" />
+                        <span>Collect fonts shipped with releases (<code>fonts/</code> folders) as Jellyfin fallback fonts</span>
+                    </label>
+                    <div class="fieldDescription">Styled .ass subtitles then render with their intended fonts in the web player. Only .ttf, .otf, .woff and .woff2 are used; Jellyfin loads at most 20 MiB. Used only when Dashboard → Playback → Fallback font folder is empty or already points to this plugin.</div>
                     <button is="emby-button" type="button" class="raised emby-button" id="OfRunLinks"><span>Link now</span></button>
 
                     <h3 style="margin-top:2em">Episode recognition</h3>
@@ -60,7 +65,7 @@
             (function () {
                 var pluginId = '3dcc5bff-46c4-4ed9-aa71-67b520faee96';
                 var fields = ['DefaultAudioLanguage', 'TitleLanguage', 'SeriesFolderTemplate', 'SeasonFolderTemplate', 'EpisodeFileTemplate', 'MovieFolderTemplate', 'MovieFileTemplate'];
-                var checks = ['EnableLinks', 'EnableNamingRules'];
+                var checks = ['EnableLinks', 'CollectFonts', 'EnableNamingRules'];
                 var page = document.querySelector('#OuterFilesConfigPage');
 
                 function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -87,6 +92,9 @@
                         r.Created + ' links created, ' + r.Removed + ' removed, ' + r.Refreshed + ' items refreshed',
                         r.Unmatched + ' tracks without a matching video'
                     ];
+                    if (r.Fonts && r.Fonts.Enabled) {
+                        lines.push('Fonts: ' + r.Fonts.Fonts + ' files, ' + (r.Fonts.Bytes / 1048576).toFixed(1) + ' MiB — ' + r.Fonts.State);
+                    }
                     var out = '<div>' + lines.map(esc).join('<br/>') + '</div>';
                     if (r.Errors && r.Errors.length) { out += '<div style="color:#e57373">' + r.Errors.map(esc).join('<br/>') + '</div>'; }
                     if (r.UnmatchedSample && r.UnmatchedSample.length) {

@@ -25,6 +25,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<FileSystemReader>();
         serviceCollection.AddSingleton<ILibrarySource, LibraryGateway>();
         serviceCollection.AddSingleton<IRefresher, RefreshGateway>();
+        serviceCollection.AddSingleton<FallbackFonts>();
         serviceCollection.AddSingleton<LinkReconciler>();
         serviceCollection.AddSingleton<IScheduledTask, LinkScheduledTask>();
         serviceCollection.AddSingleton<NamingRulesService>();
